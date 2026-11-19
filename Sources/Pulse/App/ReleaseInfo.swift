@@ -25,6 +25,9 @@ enum ReleaseInfo {
         return placeholderSupportEmail
     }
 
+    /// Where About's links open: the Support link is a mail link only when there is no support page.
+    static var linksOpenIn: String { supportURL == nil ? "your browser or mail app" : "your browser" }
+
     private static let placeholderSupportEmail = "support@pulse.example"
 
     static var copyright: String { string("NSHumanReadableCopyright") ?? "" }

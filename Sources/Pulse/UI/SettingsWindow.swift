@@ -574,7 +574,7 @@ private struct AboutPane: View {
             } header: {
                 Text("Links")
             } footer: {
-                Text("They open in your browser or mail app. Pulse itself has no account and never goes online, and it never keeps page text, URLs or what you type.")
+                Text("They open in \(ReleaseInfo.linksOpenIn). Pulse itself has no account and never goes online, and it never keeps page text, URLs or what you type.")
                     .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -39,11 +39,13 @@ None of this is stored, logged or sent anywhere.
 
 Only your settings, in Pulse's preferences. They stay on your Mac.
 
-## Links and email
+## Links and support
 
-The links in Settings › About open in your browser or mail app. What those
-sites and your email provider collect is up to them. If you write to us for
-support, we keep your message and our reply for [how long].
+The links in Settings › About open in your browser. What those sites collect
+is up to them. Support is Pulse's issue tracker on GitHub: what you post there
+is public, and GitHub's own terms and privacy statement apply to it. If you
+write to us there, we keep your message and our reply on the tracker for
+[how long].
 
 ## Children
 
