@@ -6,10 +6,11 @@
 # signature changes with every build, so each rebuild needs the permission
 # granted again; a signature from one stable certificate keeps the grant.
 #
-# The certificate is trusted by nothing and signs nothing anyone else would
-# accept, so its keychain password is not a secret: it only lets builds use
-# the key without a prompt. For distribution, use a Developer ID instead
-# (see release.sh).
+# The certificate is trusted by nothing, so its keychain password is not a
+# secret: it only lets builds use the key without a prompt. Until there is a
+# Developer ID (see release.sh), Pulse's download is signed with this
+# identity, so back up its private key (the keychain file) and keep it
+# private: a new certificate means everyone grants Accessibility again.
 set -euo pipefail
 
 name="Pulse Local Signing"

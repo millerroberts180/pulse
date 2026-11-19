@@ -2,21 +2,19 @@ import Foundation
 
 /// The keyboard Mechanical (and Ambient) sound like. Each is a measured
 /// description of a real board's sound, resynthesised from fresh noise, so no
-/// recording ships with Pulse. The references were Mechvibes community packs,
-/// measured only (credited in THIRD_PARTY_NOTICES.md): Creamy from "Creamy thingy", Velvet from an FR4-plate
-/// board with very smooth linears, Citrus from a mix of creamy linears, Alloy
-/// from a gasket-mounted aluminium board, Crisp from a magnetic-switch board.
+/// recording ships with Pulse. The references are Mechvibes' own recordings of
+/// Cherry MX switches on ABS keycaps (MIT, credited in THIRD_PARTY_NOTICES.md),
+/// measured only.
 public enum KeyboardBoard: String, Sendable, CaseIterable, Codable {
-    /// Soft, muted, and short: the classic creamy linear. The default.
-    case creamy
-    /// Smoother still, with almost no edge.
-    case velvet
-    /// Creamy with a little more pop.
-    case citrus
-    /// A heavier aluminium board with a longer ring.
-    case alloy
-    /// Brighter and clackier, with more low end.
-    case crisp
+    /// Cherry MX Black: heavy linears, brighter than Red, with a longer tail.
+    case black
+    /// Cherry MX Red: light linears, the darkest of the four, with a short
+    /// tail. The default.
+    case red
+    /// Cherry MX Brown: a tactile bump, the shortest of the four.
+    case brown
+    /// Cherry MX Blue: a click on every press, by far the brightest.
+    case blue
 }
 
 /// One key group's sound on a board: band levels (dB) over time.
@@ -26,10 +24,10 @@ struct BoardRecipe: Sendable {
     var levels: [[Double]]
     var length: Double
     /// dB: each group as loud against its board's letter keys as on the
-    /// real board (softened), and each board's letters as loud as Creamy's.
+    /// real board (softened), and each board's letters as loud as Red's.
     var loudness: Double
     /// The narrowest a low band may be, Hz. Narrow low bands ring, like a
-    /// metal case; wide ones stop quickly, like a creamy thock.
+    /// metal case; wide ones stop quickly, like a short thock.
     var width: Double
 }
 
@@ -51,7 +49,7 @@ enum BoardRecipes {
     }
 
     static func recipe(_ board: KeyboardBoard, _ group: KeyGroup) -> BoardRecipe {
-        decoded[board]?[group] ?? decoded[.creamy]![.text]!
+        decoded[board]?[group] ?? decoded[.red]![.text]!
     }
 
     private static let decoded: [KeyboardBoard: [KeyGroup: BoardRecipe]] = table.mapValues { groups in

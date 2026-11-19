@@ -9,7 +9,7 @@ public enum SoundSynth {
     public static let boardVariants = 4
 
     /// `board`: the keyboard Mechanical and Ambient sound like.
-    public static func render(_ key: VoiceKey, variant: Int = 0, sampleRate: Double, board: KeyboardBoard = .creamy) -> [Float] {
+    public static func render(_ key: VoiceKey, variant: Int = 0, sampleRate: Double, board: KeyboardBoard = .red) -> [Float] {
         switch key {
         case let .boardPress(group):
             boardKey(board, group, release: false, variant: variant, sampleRate: sampleRate)
@@ -18,7 +18,7 @@ public enum SoundSynth {
         case let .keySense(voice):
             tones(Self.keySense(voice), sampleRate: sampleRate)
         case .page(.glide):
-            // A soft detent: the Creamy board's arrow-key sound, short and quiet, so
+            // A soft detent: the Red board's arrow-key sound, short and quiet, so
             // the glide sounds like part of the same instrument.
             render(Self.glideRecipe, timeScale: 0.6, seed: 0x611DE, sampleRate: sampleRate, gain: 0.10)
         case let .page(cue):
@@ -43,9 +43,9 @@ public enum SoundSynth {
     // MARK: - Board keys
 
     /// Mechanical and Ambient keys are rendered from measured boards (see
-    /// Boards.swift); the glide borrows the Creamy board's arrow key, trimmed.
+    /// Boards.swift); the glide borrows the Red board's arrow key, trimmed.
     static var glideRecipe: BoardRecipe {
-        var recipe = BoardRecipes.recipe(.creamy, .navigation)
+        var recipe = BoardRecipes.recipe(.red, .navigation)
         recipe.length = 0.030
         return recipe
     }

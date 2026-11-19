@@ -125,21 +125,19 @@ struct BoardPicker: View {
 
     static func name(_ board: KeyboardBoard) -> String {
         switch board {
-        case .creamy: "Creamy"
-        case .velvet: "Velvet"
-        case .citrus: "Citrus"
-        case .alloy: "Alloy"
-        case .crisp: "Crisp"
+        case .black: "Black"
+        case .red: "Red"
+        case .brown: "Brown"
+        case .blue: "Blue"
         }
     }
 
     static func detail(_ board: KeyboardBoard) -> String {
         switch board {
-        case .creamy: "Soft, muted, and short: the classic creamy linear."
-        case .velvet: "Smoother still, with almost no edge."
-        case .citrus: "Like Creamy, with a little more pop."
-        case .alloy: "A heavier aluminium board with a longer ring."
-        case .crisp: "Brighter and clackier, with more low end."
+        case .black: "Cherry MX Black switches on ABS keycaps: heavy linears, brighter than Red, with a longer tail."
+        case .red: "Cherry MX Red switches on ABS keycaps: light linears, the darkest of the four, with a short tail."
+        case .brown: "Cherry MX Brown switches on ABS keycaps: a tactile bump, the shortest of the four."
+        case .blue: "Cherry MX Blue switches on ABS keycaps: a click on every press, by far the brightest."
         }
     }
 

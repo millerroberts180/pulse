@@ -5,10 +5,10 @@ noise bands (100 Hz-10 kHz) at 17 moments in the first 140 ms. Pulse
 resynthesises it from fresh noise: each band's noise is shaped by its levels
 and only then band-passed, so a band stays in its band however quickly it
 moves (shaping after the filter would splatter a quick low thock up into the
-mids). No recording is reproduced; the references (Mechvibes community packs)
-are only measured here.
+mids). No recording is reproduced; the references (Mechvibes' own Cherry MX
+ABS recordings, MIT-licensed) are only measured here.
 
-    python3 fit.py '{"thingy": "/path/creamy", ...}' recipes.json
+    python3 fit.py '{"black": "/path/cherrymx-black-abs", ...}' recipes.json
 """
 import json, sys, wave, math
 import numpy as np
@@ -17,7 +17,7 @@ SR = 48000
 BANDS = [100 * 2 ** (k / 3) for k in range(21)]            # 100 Hz ... 10.2 kHz
 # Per stage. Two stages in series make each band a third of an octave wide,
 # but never narrower than the group's low width: a narrow low band rings for
-# tens of milliseconds, right for a case's resonance, while a creamy thock is
+# tens of milliseconds, right for a case's resonance, while a quick thock is
 # a short, wide burst. The fit picks the width per key group.
 WIDTHS = (150, 80, 30)  # Hz
 
@@ -30,6 +30,7 @@ WIDTH = [150]  # The width in use (set by fit).
 TIMES = [0, 1, 2, 3, 4, 6, 8, 11, 15, 20, 27, 36, 48, 64, 85, 110, 140]  # ms
 FLOOR = -72  # Silence: a cell at the floor plays nothing.
 WINDOW_MS = 60  # What's matched: the strike and its ring.
+DEFAULT = 'red'  # The default board: every board's letters are as loud as its.
 
 GROUPS = {
     'text': lambda k: k.startswith('Key') or k.startswith('Digit') or k in ('Comma', 'Period', 'Slash', 'Semicolon', 'Quote', 'BracketLeft', 'BracketRight', 'Backslash', 'Minus', 'Equal', 'Backquote'),
@@ -239,7 +240,7 @@ def errors(recipe, length_ms, target_env, target_spec, target_frames):
     live = (tf > -30) | (mf > -30)
     decay = np.clip(mf - tf, -20, 20)
     # The first 20 ms, the strike itself, count double: a strike that lingers
-    # sounds hollow, not creamy.
+    # sounds hollow.
     weight = np.where(np.arange(len(fr)) < 10, 2.0, 1.0)
     decay_error = float((np.abs(decay) * weight)[live].sum() / weight[live].sum())
     # The decay as a correction at each recipe moment (frame centres 1, 3, 5... ms).
@@ -320,8 +321,9 @@ if __name__ == '__main__':
     packs = json.loads(sys.argv[1])
     output = sys.argv[2] if len(sys.argv) > 2 else 'recipes.json'
     result = {}
-    anchor = None  # The first board's letter keys set the loudness for all.
-    for name, folder in packs.items():
+    anchor = None  # The default board's letter keys set the loudness for all.
+    for name in sorted(packs, key=lambda name: name != DEFAULT):  # The default first.
+        folder = packs[name]
         slices = pack_slices(folder)
         board, report = {}, {}
         for group in GROUPS:
@@ -338,7 +340,7 @@ if __name__ == '__main__':
             report[group] = (width, board[group]['env_error_db'], board[group]['spectrum_error_db'], board[group]['decay_error_db'], board[group]['flatness_ref'], board[group]['flatness'])
         # Loudness: each group against the board's letters as the reference
         # has them, after Swift's peak scaling; each board's letters as loud
-        # (in energy) as the first board's.
+        # (in energy) as the default board's.
         text = board['text']
         if anchor is None:
             anchor = text['synth_energy']

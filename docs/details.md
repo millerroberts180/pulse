@@ -75,20 +75,19 @@ Mechanical and Ambient sound like the **board** you choose:
 
 | Board | Sound |
 | --- | --- |
-| **Creamy** (default) | Soft, muted and short |
-| **Velvet** | Smoother still, with almost no edge |
-| **Citrus** | Like Creamy, with a little more pop |
-| **Alloy** | A heavier aluminium board with a longer ring |
-| **Crisp** | Brighter and clackier |
+| **Black** | Cherry MX Black switches: heavy linears, brighter than Red, with a longer tail |
+| **Red** (default) | Cherry MX Red switches: light linears, the darkest of the four, with a short tail |
+| **Brown** | Cherry MX Brown switches: a tactile bump, the shortest of the four |
+| **Blue** | Cherry MX Blue switches: a click on every press, by far the brightest |
 
-Each board is rebuilt from measurements of a real keyboard. No recordings
-ship with Pulse.
+Each board is rebuilt from measurements of Mechvibes' recordings of those
+switches on ABS keycaps. No recordings ship with Pulse.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="images/typing-dark.png">
     <img src="images/typing-light.png" width="820"
-         alt="Choosing a typing sound in setup: Ambient, Mechanical, KeySense and Quiet, the five boards, and an on-screen Mac keyboard to try them on">
+         alt="Choosing a typing sound in setup: Ambient, Mechanical, KeySense and Quiet, the four boards, and an on-screen Mac keyboard to try them on">
   </picture>
 </p>
 

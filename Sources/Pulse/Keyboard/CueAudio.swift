@@ -20,7 +20,7 @@ nonisolated final class SoundBank: @unchecked Sendable {
 
     let board: KeyboardBoard
 
-    init(sampleRate: Double, id: Int, board: KeyboardBoard = .creamy) {
+    init(sampleRate: Double, id: Int, board: KeyboardBoard = .red) {
         self.sampleRate = sampleRate
         self.id = id
         self.board = board
@@ -221,7 +221,7 @@ final class CueAudio {
     private var idleTimer: Timer?
     private var nextBankID = 0
     /// The keyboard Mechanical and Ambient sound like; changing it re-renders the bank.
-    private var board: KeyboardBoard = .creamy
+    private var board: KeyboardBoard = .red
 
     func setBoard(_ newBoard: KeyboardBoard) {
         guard newBoard != board else { return }

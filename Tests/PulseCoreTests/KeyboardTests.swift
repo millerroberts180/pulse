@@ -206,7 +206,9 @@ struct FindAnnouncementTests {
 struct BoardSoundTests {
     /// Spectral flatness (geometric over arithmetic mean of power) across
     /// 1–3 kHz in the first 30 ms: near 0 for ringing tones, which sound
-    /// metallic; 0.3–0.7 for real keystrokes.
+    /// metallic (the old modal synthesis measured 0.004); 0.14–0.62 for the
+    /// key groups of the recordings the boards are measured from, Red's the
+    /// most tonal.
     private func flatness(_ samples: [Float], sampleRate: Double = 48_000) -> Double {
         let strike = Array(samples.prefix(Int(0.03 * sampleRate)))
         let n = strike.count
@@ -232,16 +234,23 @@ struct BoardSoundTests {
                 let samples = SoundSynth.render(key, sampleRate: 48_000, board: board)
                 #expect(samples.count > 500)
                 #expect(samples.allSatisfy { abs($0) <= 1 && $0.isFinite })
-                #expect(flatness(samples) > 0.15, "\(board) \(key) rings like a tone")
+                #expect(flatness(samples) > 0.1, "\(board) \(key) rings like a tone")
             }
         }
     }
 
-    @Test func `Creamy is the default board`() {
+    @Test func `Red is the default board`() {
         #expect(SoundSynth.render(.boardPress(.text), sampleRate: 48_000)
-            == SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .creamy))
-        #expect(SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .creamy)
-            != SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .velvet))
+            == SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .red))
+        #expect(SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .red)
+            != SoundSynth.render(.boardPress(.text), sampleRate: 48_000, board: .black))
+    }
+
+    /// Saved settings then fall back to the default board (see
+    /// `PulseSettings.init(from:)`, and the self-test's check of a whole blob).
+    @Test(arguments: ["creamy", "velvet", "citrus", "alloy", "crisp"])
+    func `boards earlier versions had no longer decode`(name: String) {
+        #expect(KeyboardBoard(rawValue: name) == nil)
     }
 
     @Test func `each board draws a tone signature`() {

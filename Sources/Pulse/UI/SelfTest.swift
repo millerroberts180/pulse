@@ -12,6 +12,7 @@ enum SelfTest {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         var ok = true
+        ok = retiredBoard() && ok
         ok = motionThroughPageDetector() && ok
         ok = tour() && ok
         ok = mediaQuiet() && ok
@@ -23,6 +24,38 @@ enum SelfTest {
     private static func check(_ condition: Bool, _ message: String) -> Bool {
         print(condition ? "  ok   " : "  FAIL ", message)
         return condition
+    }
+
+    /// Settings saved with a board this Pulse doesn't have ("alloy", from an
+    /// earlier version) load with the default board and every other setting
+    /// as it was.
+    private static func retiredBoard() -> Bool {
+        print("Settings with a retired board")
+        var saved = PulseSettings()
+        saved.muted = true
+        saved.waypointCues = true
+        saved.hapticStrength = 0.75
+        saved.pageSounds = true
+        saved.motionThreshold = .late
+        saved.cueVolume = 0.25
+        saved.keyboardProfile = .mechanical
+        saved.keyboardBoard = .brown
+        saved.keyboardProfileChosen = true
+        saved.keyReleaseSounds = true
+        saved.keyboardVolume = 0.5
+        saved.quietWhileMediaPlays = false
+        saved.excludedApps = ["com.example.editor"]
+        let encoded = (try? JSONEncoder().encode(saved)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let blob = encoded.replacingOccurrences(of: #""keyboardBoard":"brown""#, with: #""keyboardBoard":"alloy""#)
+        var ok = check(blob != encoded && blob.contains(#""keyboardBoard":"alloy""#), "the saved settings name the Alloy board")
+        guard let loaded = try? JSONDecoder().decode(PulseSettings.self, from: Data(blob.utf8)) else {
+            return check(false, "they still decode")
+        }
+        var expected = saved
+        expected.keyboardBoard = PulseSettings().keyboardBoard
+        ok = check(loaded.keyboardBoard == .red, "they load with the default board (\(loaded.keyboardBoard))") && ok
+        ok = check(loaded == expected, "and every other setting intact") && ok
+        return ok
     }
 
     /// A trackpad fling into the page detector: precision, swell, glides,

@@ -3,8 +3,9 @@
 Pulse builds on what has already been shown to work rather than starting from
 scratch. Where a decision came from elsewhere, it says so: mostly Tactile (open
 source, MIT), whose page-detection heuristics Pulse adapts (see
-[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)), and the Mechvibes sound
-packs the keyboard boards are measured from (never shipped).
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)), and Mechvibes' own
+Cherry MX recordings (MIT), which the keyboard boards are measured from (never
+shipped).
 
 ## Principles turned into mechanisms
 
@@ -216,28 +217,38 @@ buffer (≈10 ms at the default size), left untouched for now so other apps
 aren't affected.
 
 Mechanical and Ambient keys are resynthesised from measured boards
-(`Boards.swift`). The default Creamy board is measured from Mechvibes'
-"Creamy thingy"; Velvet, Citrus, Alloy and Crisp from four other packs (listed in
-`scripts/boards/README.md` and credited in `THIRD_PARTY_NOTICES.md`). The packs
-were measured, never shipped. For each key group a board stores the level of 21
-third-octave noise bands (100 Hz–10 kHz) at 17 moments in the first 140 ms,
-plus how narrow its low bands may be. Wide low bands stop quickly, like a
-creamy thock; narrow ones ring, like a metal case. Each band's own noise is
+(`Boards.swift`). Black, Red, Brown and Blue are measured from Mechvibes' own
+recordings of Cherry MX Black, Red, Brown and Blue switches on ABS keycaps,
+which its owner recorded and its MIT licence covers (the pinned commit is in
+`scripts/boards/README.md`, the notice in `THIRD_PARTY_NOTICES.md`). The
+recordings were measured, never shipped. Red is the default because, of the
+two linears, it measures darker and shorter: its letter keys' spectral
+centroid is 2.7 kHz to Black's 3.4 kHz, 3 % of their energy comes after the
+first 10 ms to Black's 4 %, and 20–30 ms after the strike they are 2–5 dB
+quieter. It is also the darkest of the four, so it is the nearest to the
+soft, muted, short sound Pulse had by default before. For each key group a
+board stores the level of 21 third-octave noise bands (100 Hz–10 kHz) at 17
+moments in the first 140 ms, plus how narrow its low bands may be. Wide low
+bands stop quickly, like a short thock; narrow ones ring, like a metal case. Each band's own noise is
 shaped by those levels and only then band-passed (two stages), so a quick low
 thock stays low instead of splattering into the mids. Noise, not tones:
 real keystrokes are many tiny resonances blurred together, and the earlier
 modal synthesis's pure tones at 1.2–2.5 kHz rang like metal (spectral flatness
-0.004, where real keys measure 0.3–0.7; a test now holds every board above
-0.15). Four takes per group come from fresh noise; release strokes are
-quicker and lighter in the low end.
+0.004, where the recordings' key groups measure 0.14–0.62, Red's the most
+tonal; a test now holds every board above 0.1). Four takes per group come
+from fresh noise; release strokes are quicker and lighter in the low end.
 
 `scripts/boards/fit.py` fits the levels to the references. It matches the
 third-octave spectra of the strike (first 6 ms) and the tail (to 60 ms) and
 the decay in 2 ms frames, makes
 any extra brightness above 2.5 kHz cost in full, and picks each group's low
-width (150, 80 or 30 Hz). Measured this way the Creamy board is within about
-2–3 dB of the recording across the third-octave bands, in the strike and the
-tail alike, and as soft on top (under 2 % of its energy above 3 kHz). `Pulse --dump-sounds <folder>`
+width (150, 80 or 30 Hz). Measured this way the Red board's letter keys are
+within about 2 dB of the recording across the third-octave bands, in the
+strike and the tail alike (2.1 and 1.5 dB), and as bright on top (24 % of
+their energy above 3 kHz, the recording's 22 %). Its other key groups are
+within 1.3–3.1 dB in the tail and 2.3–5.1 dB in the strike, the space bar's
+and Delete's strikes the furthest off. Every board's figures are in
+`scripts/boards/README.md`. `Pulse --dump-sounds <folder>`
 (debug builds) writes every voice as WAV.
 
 KeySense cues are short raised-cosine tones. Real recordings can replace any
@@ -307,6 +318,4 @@ dropped when the app quits.
    and spacing, the reading line (one third down), and probe rate.
 2. **User testing** with people who rely on reduced visual attention and with
    VoiceOver users, before claiming an accessibility benefit.
-3. **Original keyboard recordings** or a licensed pack: re-fit the boards
-   from them (`scripts/boards`), or play them through `SoundBank`.
-4. **Distribution**: a Developer ID and notarization (`scripts/release.sh`).
+3. **Distribution**: a Developer ID and notarization (`scripts/release.sh`).

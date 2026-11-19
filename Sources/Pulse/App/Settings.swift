@@ -39,8 +39,8 @@ struct PulseSettings: Codable, Equatable {
     // Keyboard
     var keyboardEnabled = true
     var keyboardProfile: KeyboardProfile = .ambient
-    /// The keyboard Mechanical and Ambient sound like: the Creamy board by default.
-    var keyboardBoard: KeyboardBoard = .creamy
+    /// The keyboard Mechanical and Ambient sound like: the Red board by default.
+    var keyboardBoard: KeyboardBoard = .red
     /// Whether the user picked a profile themselves (VoiceOver users keep
     /// Pulse quiet until they do).
     var keyboardProfileChosen = false
@@ -153,6 +153,7 @@ struct PulseSettings: Codable, Equatable {
         cueVolume = try c.decodeIfPresent(Float.self, forKey: .cueVolume) ?? cueVolume
         keyboardEnabled = try c.decodeIfPresent(Bool.self, forKey: .keyboardEnabled) ?? keyboardEnabled
         keyboardProfile = (try? c.decodeIfPresent(KeyboardProfile.self, forKey: .keyboardProfile)) ?? keyboardProfile
+        // So does a board an earlier Pulse had and this one doesn't.
         keyboardBoard = (try? c.decodeIfPresent(KeyboardBoard.self, forKey: .keyboardBoard)) ?? keyboardBoard
         keyboardProfileChosen = try c.decodeIfPresent(Bool.self, forKey: .keyboardProfileChosen) ?? keyboardProfileChosen
         keyReleaseSounds = try c.decodeIfPresent(Bool.self, forKey: .keyReleaseSounds) ?? keyReleaseSounds

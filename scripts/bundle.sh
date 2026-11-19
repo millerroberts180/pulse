@@ -38,8 +38,8 @@ for setting in PulseWebsiteURL=WEBSITE_URL PulseSupportEmail=SUPPORT_EMAIL Pulse
   fi
 done
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
-# Tactile's MIT licence asks for its notice in every copy, so the notices
-# ship inside the app.
+# Tactile's and Mechvibes' MIT licences ask for their notices in every copy,
+# so the notices ship inside the app.
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
 lipo -create "${slices[@]}" -output "$app/Contents/MacOS/Pulse"
 # Local symbols are only for debugging; dropping them shrinks the app ~40 %.
