@@ -18,13 +18,15 @@ cd "$root"
 : "${PULSE_NOTARY_PROFILE:?Set PULSE_NOTARY_PROFILE to a notarytool keychain profile}"
 [[ $PULSE_SIGN_IDENTITY == "Developer ID Application:"* ]] || { echo "Notarization needs a Developer ID Application identity"; exit 1; }
 
-# About's links would otherwise lead to placeholders.
+# About's links would otherwise lead to placeholders. Support is an email
+# address or a help page, such as the issue tracker; either one is enough.
 source Resources/release.env
 unset_links=()
-for variable in WEBSITE_URL SUPPORT_EMAIL PRIVACY_POLICY_URL EULA_URL; do
+for variable in WEBSITE_URL PRIVACY_POLICY_URL EULA_URL; do
   [[ -n ${(P)variable:-} ]] || unset_links+=($variable)
 done
-(( ${#unset_links} == 0 )) || { echo "Set ${unset_links[*]} in Resources/release.env first"; exit 1; }
+[[ -n ${SUPPORT_EMAIL:-} || -n ${SUPPORT_URL:-} ]] || unset_links+=("SUPPORT_EMAIL or SUPPORT_URL")
+(( ${#unset_links} == 0 )) || { echo "Set ${(j:, :)unset_links} in Resources/release.env first"; exit 1; }
 
 scripts/test.sh
 PULSE_SIGN_IDENTITY="$PULSE_SIGN_IDENTITY" scripts/bundle.sh

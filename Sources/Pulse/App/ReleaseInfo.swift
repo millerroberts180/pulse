@@ -10,10 +10,22 @@ enum ReleaseInfo {
     static var websiteURL: URL { url("PulseWebsiteURL", placeholder: "https://pulse.example") }
     static var privacyPolicyURL: URL { url("PulsePrivacyPolicyURL", placeholder: "https://pulse.example/privacy") }
     static var eulaURL: URL { url("PulseEULAURL", placeholder: "https://pulse.example/eula") }
-    /// A help page, if there is one; support is otherwise by email.
+    /// A help page, such as the issue tracker. When there is one, About's
+    /// Support link opens it.
     static var supportURL: URL? { string("PulseSupportURL").flatMap(URL.init(string:)) }
-    static var supportEmail: String { string("PulseSupportEmail") ?? "support@pulse.example" }
-    static var supportMailURL: URL { URL(string: "mailto:\(supportEmail)") ?? websiteURL }
+    /// The support address, if one is set.
+    static var supportEmail: String? { string("PulseSupportEmail") }
+    static var supportMailURL: URL { URL(string: "mailto:\(supportEmail ?? placeholderSupportEmail)") ?? websiteURL }
+    /// What About's Support link says: the address when there is one,
+    /// otherwise the help page's host, as the Website link shows its host.
+    /// The placeholder address only when there is neither.
+    static var supportTitle: String {
+        if let supportEmail { return supportEmail }
+        if let supportURL { return supportURL.host() ?? supportURL.absoluteString }
+        return placeholderSupportEmail
+    }
+
+    private static let placeholderSupportEmail = "support@pulse.example"
 
     static var copyright: String { string("NSHumanReadableCopyright") ?? "" }
 
