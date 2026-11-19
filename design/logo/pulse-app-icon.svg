@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title">
+  <title id="title">Pulse app icon</title>
+  <!-- macOS grid: an 824-unit body (inset 100) with corner radius 186, one colour, and the white symbol at 62 % centred 2 % high. -->
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="#5B4FE6"/>
+  <g transform="translate(512 496) scale(2.48) translate(-128 -126)">
+    <path d="M28 170 H62 C88 170 90 82 128 82 C166 82 168 170 194 170 H228" fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">Pulse symbol, small sizes</title>
+  <!-- For 32 px and below: shorter tails, a taller pulse, and a 32-unit stroke, so the bump stays open at 16 px. -->
+  <rect x="24" y="56" width="208" height="144" fill="none"/>
+  <path d="M40 184 H66 C90 184 92 72 128 72 C164 72 166 184 190 184 H216" fill="none" stroke="#16161D" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

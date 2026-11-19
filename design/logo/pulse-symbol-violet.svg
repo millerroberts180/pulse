@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">Pulse symbol</title>
+  <!-- Soft Pulse. 256 grid, unit 8: a flat line (x 28-228, y 170) rising into one round-topped pulse (peak y 82 at x 128);
+       stroke 24, round caps and joins. Flat tangents at the base and top keep it a soft bump, never a spike.
+       Sits 2 % above centre (optical centre). Stroke-based master: keep the stroke at 24 when scaling the drawing. -->
+  <rect x="16" y="70" width="224" height="112" fill="none"/>
+  <path id="symbol" d="M28 170 H62 C88 170 90 82 128 82 C166 82 168 170 194 170 H228" fill="none" stroke="#5B4FE6" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

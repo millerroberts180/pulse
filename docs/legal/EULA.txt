@@ -1,0 +1,113 @@
+DRAFT FOR LEGAL REVIEW. NOT IN FORCE.
+This draft has not been reviewed by a lawyer. Text in [square brackets] is a placeholder to be
+completed before Pulse is released.
+
+PULSE END USER LICENCE AGREEMENT
+Version [1.0], last updated [date]
+
+This End User Licence Agreement ("Agreement") is between you and [LICENSOR: owner's full legal name,
+or the business that makes Pulse, and its address] ("we", "us"). It covers the Pulse software for
+macOS, its documentation and any updates we provide for it (together, "Pulse").
+
+By installing, copying or using Pulse, you agree to this Agreement. If you do not agree, do not
+install or use Pulse.
+
+1. LICENCE
+
+1.1 Pulse is free. We grant you a personal, non-exclusive, non-transferable licence, at no charge, to
+install and use Pulse on Macs that you own or control.
+
+1.2 You may make one copy of Pulse for backup.
+
+2. RESTRICTIONS
+
+Except as this Agreement allows, or as applicable law permits despite this restriction, you may not:
+  (a) copy, sell, rent, lease, lend, sublicense or otherwise distribute Pulse;
+  (b) reverse engineer, decompile or disassemble Pulse;
+  (c) modify Pulse, or remove or change any notice of ownership in it;
+  (d) bypass or interfere with its code signature.
+
+3. OWNERSHIP
+
+Pulse is licensed, not sold. We, and our licensors if any, keep all rights, title and interest in
+Pulse, including its copyright, trademarks and other intellectual property. Any rights not expressly
+granted to you are reserved.
+
+4. WHAT PULSE DOES ON YOUR MAC
+
+4.1 With your permission, Pulse uses macOS's Accessibility features to learn the kind and position of
+what is under the pointer and on the page (a link, a button, a heading), and it watches which kinds of
+keys are pressed (letters, Return, Delete) to play typing sounds. It plays haptic feedback on your
+trackpad and sounds through your Mac's audio output. While it runs, it may silence the trackpad's
+release click, and it puts that click back when it quits.
+
+4.2 Feedback depends on what each app exposes to Accessibility, so it may be missing, late or wrong
+in some apps and on some pages. Do not rely on Pulse as your only way to notice a link, a warning or
+the end of a page.
+
+5. PRIVACY
+
+Our privacy policy at [privacy policy URL] explains what Pulse stores and what it does not. In short,
+Pulse never keeps page text, URLs or what you type, and does not send anything to us.
+
+6. UPDATES AND SUPPORT
+
+We are not required to provide updates, upgrades or support. If we do provide an update, this
+Agreement applies to it unless it comes with its own terms. Support, if offered, is at [support email
+or URL].
+
+7. NO WARRANTY
+
+TO THE FULLEST EXTENT PERMITTED BY LAW, PULSE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS
+AND WITHOUT WARRANTY OF ANY KIND. WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED
+WARRANTIES OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, QUIET
+ENJOYMENT AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT PULSE WILL MEET YOUR NEEDS, WORK WITH EVERY APP,
+TRACKPAD OR VERSION OF MACOS, OR RUN WITHOUT INTERRUPTION OR ERROR.
+
+Some jurisdictions do not allow these exclusions, so some of them may not apply to you. Nothing in
+this Agreement limits rights you have as a consumer that cannot be limited by contract.
+
+8. LIMITATION OF LIABILITY
+
+TO THE FULLEST EXTENT PERMITTED BY LAW, WE WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, WORK, PROFITS OR GOODWILL, ARISING FROM
+YOUR USE OF OR INABILITY TO USE PULSE, EVEN IF WE HAVE BEEN TOLD SUCH DAMAGES ARE POSSIBLE. OUR TOTAL
+LIABILITY UNDER THIS AGREEMENT IS LIMITED TO [AMOUNT].
+
+Nothing in this Agreement excludes or limits liability that cannot be excluded or limited by law,
+such as liability for death or personal injury caused by negligence, or for fraud.
+
+9. TERMINATION
+
+This Agreement lasts until it ends. Your rights under it end automatically if you break any of its
+terms. When it ends, you must stop using Pulse and delete every copy of it. Sections 3, 7, 8, 10 and
+11 continue after it ends.
+
+10. EXPORT
+
+You may not use, export or re-export Pulse in breach of United States or other applicable export laws
+and sanctions.
+
+11. GENERAL
+
+11.1 This Agreement is governed by the laws of [jurisdiction], without regard to its conflict of laws
+rules. The courts of [jurisdiction] have exclusive jurisdiction, unless the law where you live gives
+you the right to bring a claim where you live.
+
+11.2 This Agreement is the entire agreement between you and us about Pulse, and replaces any earlier
+understanding. If any part of it is held unenforceable, that part is limited to the minimum extent
+needed and the rest stays in effect. If we do not enforce a term, that is not a waiver of it.
+
+11.3 You may not transfer this Agreement or your licence without our written consent. We may transfer
+it to a successor of the business that makes Pulse.
+
+11.4 Apple, Mac, macOS, Force Touch and Magic Trackpad are trademarks of Apple Inc. Pulse is not made
+or endorsed by Apple.
+
+12. CONTACT
+
+[LICENSOR: owner's full legal name or business]
+[Postal address]
+[Support email]
+
+© 2026 [owner's full legal name or business]. All rights reserved.
