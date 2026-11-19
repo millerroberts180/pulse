@@ -13,7 +13,7 @@ shipped).
 | --- | --- |
 | One action, one cue | `HapticOutput` drops a cue landing within 120 ms of a higher-priority one; `ControlMemory` makes one visual control cue once even when web pages re-render it; hover and selection cues are one pulse each |
 | Silence is a feature | Hover cues only on *entering* a control by moving the pointer; content scrolling under a still pointer is remembered silently; headings deeper than h3 never cue; landmark cues ≥ 350 ms apart; scrolling below the motion threshold is silent |
-| Learnable, not cryptic | An interactive setup (a tour page, then every cue in a line to feel and choose), and Settings › Cues as the legend afterwards |
+| Learnable, not cryptic | A setup page where each cue plays on its live trigger and is named as it plays, and Settings › Cues as the legend afterwards |
 | Comfort is mandatory | Strength, motion threshold and intensity, two volumes, and haptics-only, audio-only, or both |
 | Meaning before spectacle | Five page cues, each tied to one Accessibility fact (role, selection, invalid/alert, heading position, scroll position) |
 | Respect private contexts | Secure Event Input silences keys in password fields; microphone in use, other audio playing, excluded apps, mute hotkey, VoiceOver default |
@@ -164,41 +164,48 @@ system sounds, and speech (VoiceOver, speech synthesis) are ignored
 
 SwiftUI windows, created on demand and held while Pulse runs.
 
-- **Tour**: an AppKit scroll view inside a drawn browser frame. Each section
-  plays its cue as its top crosses the cue line (a third of the way down,
-  where live headings cue) in either direction, and flashes the element it
-  belongs to. Links and buttons also cue on hover, silent for 0.3 s after a
-  scroll as on live pages; the tab strip advances as it arrives. A stretch of
-  placeholder cards is for flicking (MotionModel), and the bottom is the page
-  end (BoundaryTracker). A cue counts as felt on the checklist only if a
-  finger was down: momentum is travel you can't feel.
-- **Cue picker**: every cue in a line. A pad plays its cue as the pointer
-  enters it; the glide pad plays one faint pulse per 14 pt of travel, at
-  least 70 ms apart, so it feels like the glide's texture. Each switch maps
-  to its own setting (links and controls, and glide and swell, are separate).
-  Settings › Cues is the legend afterwards: each cue's icon plays it on
-  hover, beside its meaning and switch, in a window narrow enough to sit
-  beside a browser.
+- **Steps** (`SetupStep`): the tour, the Accessibility permission, the
+  typing sound, then the menu-bar icon, the mute shortcut and open at login.
+  A step stays only if it teaches something or grants something a feature
+  needs. The permission comes just before typing, the first thing that needs
+  it; the tour needs none.
+- **Tour**: a short page in an AppKit scroll view, built from real controls:
+  a link, a button, a destructive button, an email field with an error, a
+  list, headings, highlighted text, a stretch of placeholder cards and an
+  end. The live detectors never read Pulse's own windows, so the page cues
+  itself, on the live triggers and by the live rules (`TourCue`): the role
+  table and caution check, roles read from the accessibility tree, silent for
+  0.3 s after a scroll, and focus within 0.4 s of a click left to the click
+  (except a field with an error). The list's selection changes cue
+  navigation. As it scrolls, `BoundaryTracker`, the highlight and heading
+  `LandmarkTracker`s and `MotionModel` run on its on-screen geometry, in the
+  live detector's order, one cue at a time. A cue counts as felt on the
+  checklist only if a finger was down: momentum is travel you can't feel.
+- **Typing**: the four sounds as tiles, and a text box. Typing there plays
+  through the live key tap, as in any app, and what's typed stays in the box.
+  When it's silent, a line says why in the menu's words. Return in the box
+  starts a new line, so Continue has no Return shortcut on that step.
+- **Re-runs** (Settings › General › Open Tutorial…) show the tutorial: the
+  tour, typing, and the last step without open at login.
 
-- **Typing**: an on-screen US Mac keyboard. A local event monitor (only
-  while the setup window is in front) and clicks feed the same
-  `KeyInterpreter` and `KeyboardVoicing` as live typing, so chords, Caps
-  Lock, and repeats sound as they will; only key codes are used, to light the
-  key and pick its group. It listens only while its own window is key; then
-  the live keyboard engine is silenced so nothing plays twice, and keys other
-  than ⌘ shortcuts stay in the demo. Settings › Keyboard has a smaller copy.
-- **Re-runs** (Settings › General › Open Tutorial…) show only the tutorial
-  steps: tour, cues, typing.
+Settings › Cues is the legend afterwards: each cue's icon plays it on hover,
+beside its meaning and switch, in a window narrow enough to sit beside a
+browser. Settings › Keyboard has an on-screen US Mac keyboard. A local event
+monitor (only while its window is key) and clicks feed the same
+`KeyInterpreter` and `KeyboardVoicing` as live typing, so chords, Caps Lock
+and repeats sound as they will; only key codes are used, to light the key and
+pick its group. While it listens, the live keyboard engine is silenced so
+nothing plays twice, and keys other than ⌘ shortcuts stay in the demo.
 
 Settings' choices (strength, where motion starts, its intensity) are drawn
 tiles rather than segmented controls: a pulse's height, a silent stretch
 then glide dots, dot density. Picking one plays it: a control's tick at that
 strength, or a fling run through the motion model with that tuning.
 
-Both work before Accessibility is granted, and the live detectors skip
-Pulse's own windows. Previews ignore mute and the per-cue switches: feeling a
-cue is how it's learned. A caption names each cue as it plays, as its visual
-equivalent.
+Both work before Accessibility is granted, except typing in setup's box, and
+the live detectors skip Pulse's own windows. Previews ignore mute and the
+per-cue switches: feeling a cue is how it's learned. A caption names each cue
+as it plays, as its visual equivalent.
 
 ## Keyboard
 
@@ -254,8 +261,9 @@ and Delete's strikes the furthest off. Every board's figures are in
 KeySense cues are short raised-cosine tones. Real recordings can replace any
 voice through `SoundBank` without touching the pipeline.
 
-The setup and Settings › Keyboard each have an on-screen keyboard (see Setup
-and settings) that plays keys through the same interpreter and voicing.
+Settings › Keyboard has an on-screen keyboard (see Setup and settings) that
+plays keys through the same interpreter and voicing. Setup's typing step uses
+a plain text box and the live key path instead.
 
 ## Line Apps
 
@@ -311,6 +319,59 @@ re-armed; drags are ignored; live-region bursts are inspected at most twice a
 second and selection changes one at a time; an app that stops answering gets
 a 0.5 s backoff; settings are written once a slider settles; per-app state is
 dropped when the app quits.
+
+## Decisions
+
+### Setup in Pulse 0.2.0
+
+*Superseded in part by [Setup holds only what teaches](#setup-holds-only-what-teaches-19-november-2026):
+the welcome, the cue picker, the setup's on-screen keyboard and the cue line
+are gone. Still standing: the tour as the first teaching step, felt only with
+a finger down, previews that ignore mute and the switches, the tutorial from
+Settings › General, and Settings › Cues and Settings › Keyboard as they were.*
+
+Six steps: a welcome with what Pulse does; a tour in a drawn browser frame,
+where each section played its cue as its top crossed a cue line a third of
+the way down and flashed the element it belonged to; every cue in a line,
+each with a pad to feel and a switch; typing on an on-screen keyboard, with the board,
+volume, release sounds and Caps Lock; the permission; and a finish with open
+at login. Re-runs showed the tour, the cues and typing.
+
+### Setup holds only what teaches (19 November 2026)
+
+**What changed.** Setup is now the tour, the permission, the typing sound and
+a last step with the menu-bar icon, the mute shortcut and open at login; the
+tutorial is the same without the permission and open at login. I dropped the
+welcome, since the tour's first line says what Pulse does. I dropped the cue
+picker, since Settings › Cues has the same switches. The privacy line moved
+to the permission step. The typing step keeps only the choice of sound; the
+board, volume, release sounds and Caps Lock stay in Settings › Keyboard, with
+their defaults.
+
+**Why.** Setup should teach what a person needs, and grant what a feature
+needs, in the app's own terms. The old tour played every cue as its section
+crossed a line, but on real pages only headings and highlighted text cue
+there; links, buttons and fields cue when you point at them or focus them.
+Now the tour is a page of real controls, and each cue fires on its live
+trigger. Making the
+detectors read Pulse's own windows would have meant reworking how they skip
+them (Settings' previews depend on it), so the page applies the detectors'
+rules itself, through the same PulseCore classifiers and trackers. The
+permission moved to just before typing because the box is heard through the
+real key tap, which needs it. The on-screen keyboard in setup wasn't needed
+once typing in a real box can be heard.
+
+**What I checked.** Unit tests for the step lists, the checklist and each
+tour cue rule; `--self-test` scrolling, pointing, clicking and selecting on
+the tour with a fake clock, and pressing Return in the typing box (which
+first showed Return pressing Continue, hence no Return shortcut on that
+step); `--snapshot-ui` for every step and state in setup and the tutorial,
+light and dark; and Settings rendered byte for byte as before.
+
+**Deferred.** Feeling the cues on a Force Touch trackpad, real hover through
+tracking areas, hearing the box through the key tap, the grant flow, and
+VoiceOver reading the tour's headings and field all need a real Mac.
+Increase Contrast isn't rendered off screen.
 
 ## Next steps
 

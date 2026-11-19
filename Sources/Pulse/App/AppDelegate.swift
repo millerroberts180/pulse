@@ -34,6 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         page.isOwnWindow = { [weak self] point in self?.isOwnWindow(at: point) ?? false }
         page.onCue = { [weak self] cue, level in self?.playCueSound(cue, level: level) }
+        keyboard.onStatusChange = { [weak self] in
+            guard let self else { return }
+            self.setupWindow?.keyboardChanged(self.keyboard.status)
+        }
         media.onChange = { [weak self] in self?.apply() }
 
         muteHotKey.onPress = { [weak self] in self?.store.value.muted.toggle() }
@@ -122,8 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = SetupWindowController(
                 store: store, previewer: previewer,
                 tutorialOnly: UserDefaults.standard.bool(forKey: SetupWindowController.completedKey),
-                onRequestPermission: { [weak self] in self?.permission.waitForGrant() },
-                onTypingDemo: { [weak self] active in self?.keyboard.setDemo("setup", active: active) }
+                keyboard: keyboard.status,
+                onRequestPermission: { [weak self] in self?.permission.waitForGrant() }
             )
             controller.onClose = { [weak self] in self?.setupWindow = nil }
             setupWindow = controller

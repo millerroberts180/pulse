@@ -2,6 +2,7 @@
 import AppKit
 import PulseCore
 import QuartzCore
+import SwiftUI
 
 /// `Pulse --self-test` (debug builds only): drives the real pipelines with
 /// simulated input, in real time, and checks what comes out. Haptics are
@@ -17,6 +18,7 @@ enum SelfTest {
         ok = tour() && ok
         ok = mediaQuiet() && ok
         ok = keyboardDemo() && ok
+        ok = typingStep() && ok
         print(ok ? "Self-test passed" : "Self-test FAILED")
         return ok
     }
@@ -125,7 +127,7 @@ enum SelfTest {
         return ok
     }
 
-    /// The on-screen keyboard (setup and Settings): real key events light keys
+    /// The on-screen keyboard in Settings › Keyboard: real key events light keys
     /// and ask for the right voices, keys stay in the demo except ⌘ shortcuts,
     /// other windows are left alone, clicks work, and Pulse's live typing sound
     /// stands aside only while it's listening. Nothing is played aloud.
@@ -166,7 +168,7 @@ enum SelfTest {
         heard = []
         let returnPasses = model.handle(key(.keyDown, 36))
         _ = model.handle(key(.keyUp, 36))
-        ok = check(!returnPasses && heard.first == .boardPress(.returnKey), "Return sounds as Return and doesn't press Continue") && ok
+        ok = check(!returnPasses && heard.first == .boardPress(.returnKey), "Return sounds as Return and stays in the demo") && ok
         ok = check(model.handle(key(.keyDown, 12, .command)), "⌘ shortcuts go on to the app") && ok
         _ = model.handle(key(.keyUp, 12, .command))
 
@@ -249,43 +251,113 @@ enum SelfTest {
         return data
     }
 
-    /// The setup's tour: swiping down plays every section's cue once, in
-    /// order, then one landing at the end; swiping back up lands at the top.
+    /// The setup's tour, on the live detector's rules: each heading and the
+    /// highlight pulse once on the way down, then the end; pointing and
+    /// clicking cue as on a live page, and not just after a scroll.
     private static func tour() -> Bool {
         print("Setup tour")
-        let size = CGSize(width: 776, height: 314)
+        let size = CGSize(width: 776, height: 360)
         let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size),
                               styleMask: [.titled], backing: .buffered, defer: false)
         let view = TourScrollView()
         window.contentView = view
         view.frame = CGRect(origin: .zero, size: size)
         view.layoutSubtreeIfNeeded()
+        var t: CFTimeInterval = 100
+        view.clock = { t }
         var cues: [Cue] = []
         view.onCue = { cue, _, _ in cues.append(cue) }
 
+        view.simulatePointing(at: "Save Changes")
+        view.simulatePointing(at: "Get help")
+        view.simulatePointing(at: "Delete Account…")
+        let pointing = cues
+        cues = []
+        view.simulateClickInField()
+        let field = cues
+        cues = []
+        view.simulateSelecting(row: 2)
+        let list = cues
+
+        // A slow swipe, 200 pt a second.
+        cues = []
         let bottom = view.documentHeight - size.height
         var y: CGFloat = 0
         while y < bottom {
-            y = min(y + 30, bottom)
-            view.simulateScroll(to: y, direction: .down)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            t += 0.05
+            y = min(y + 10, bottom)
+            view.simulateScroll(to: y)
         }
         let down = cues
-        view.simulateScroll(to: bottom, direction: .down) // Held at the end.
+        cues = []
+        view.simulatePointing(at: "Save Changes")
+        let afterScroll = cues
         // Ends share a 1.5 s cooldown; a person takes longer than that to swipe back up.
-        RunLoop.main.run(until: Date().addingTimeInterval(1.6))
+        t += 1.6
         cues = []
         while y > 0 {
+            t += 0.05
             y = max(y - 45, 0)
-            view.simulateScroll(to: y, direction: .up)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            view.simulateScroll(to: y)
         }
         let up = cues
-        let expected: [Cue] = [.landmark, .actionable, .action, .caution, .navigation, .waypoint, .boundary]
+
         var ok = check(view.documentHeight > 2000, "the page scrolls (\(Int(view.documentHeight)) pt)")
-        ok = check(down == expected, "each section's cue once, in order, then the end: \(down.map(\.rawValue))") && ok
-        ok = check(up.last == .boundary && up.filter { $0 == .boundary }.count == 1, "one landing back at the top") && ok
-        ok = check(Set(up).isSuperset(of: expected.dropLast()), "sections cue again on the way up") && ok
+        ok = check(pointing == [.action, .actionable, .caution], "button, link and destructive button: \(pointing.map(\.rawValue))") && ok
+        ok = check(field == [.caution], "clicking the field with an error: \(field.map(\.rawValue))") && ok
+        ok = check(list == [.navigation], "moving through the list: \(list.map(\.rawValue))") && ok
+        // The last heading never reaches a third of the way down: the end is felt instead.
+        let expected: [Cue] = [.landmark, .landmark, .waypoint, .landmark, .boundary]
+        ok = check(down == expected, "each heading and the highlight once, then the end: \(down.map(\.rawValue))") && ok
+        ok = check(afterScroll.isEmpty, "a button scrolled under the pointer stays silent") && ok
+        ok = check(up.last == .boundary && up.filter { $0 == .boundary }.count == 1, "one landing back at the top: \(up.map(\.rawValue))") && ok
+        window.close()
+        return ok
+    }
+
+    /// The setup's typing step: Return in the box starts a new line, as in
+    /// any text box, and doesn't press Continue; on other steps it does.
+    private static func typingStep() -> Bool {
+        print("Setup typing step")
+        let suite = "com.millerroberts.Pulse.selftest"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults)
+        let haptics = HapticOutput()
+        haptics.isMuted = true
+        let previewer = CuePreviewer(haptics: haptics, audio: CueAudio(), store: store)
+        let model = SetupModel(store: store, previewer: previewer, tutorialOnly: true, keyboard: .playing)
+        model.step = .typing
+        let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: SetupWindowController.size),
+                              styleMask: SetupWindowController.style, backing: .buffered, defer: false)
+        window.contentView = NSHostingView(rootView: SetupView(model: model, store: store))
+        window.contentView?.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        func textView(in view: NSView) -> NSTextView? {
+            (view as? NSTextView) ?? view.subviews.lazy.compactMap(textView).first
+        }
+        /// Return as the app delivers a key-down: key equivalents first, then the focused view.
+        func pressReturn() {
+            let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                         windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
+                                         isARepeat: false, keyCode: 36)!
+            if !window.performKeyEquivalent(with: event) { window.sendEvent(event) }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        guard let box = window.contentView.flatMap(textView) else {
+            return check(false, "the typing step has a text box")
+        }
+        window.makeFirstResponder(box)
+        pressReturn()
+        var ok = check(model.step == .typing && box.string.contains("\n"), "Return in the box starts a new line and stays on the step")
+        // On the other steps it does: the step before typing is the tour.
+        model.step = .tour
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        window.makeFirstResponder(nil)
+        pressReturn()
+        ok = check(model.step == .typing, "on the tour, Return presses Continue (\(model.step))") && ok
         window.close()
         return ok
     }

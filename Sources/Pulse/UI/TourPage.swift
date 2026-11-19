@@ -3,15 +3,14 @@ import PulseCore
 import QuartzCore
 import SwiftUI
 
-/// The setup's tour: a fake web page you swipe down through. Each section
-/// plays its cue as it reaches the cue line a third of the way down (where
-/// live headings cue), and its element flashes so the feel and the thing it
-/// means arrive together. A stretch near the end is for flicking fast (swell
-/// and glide), and the bottom is the page end. Links and buttons also cue on
-/// hover, as on live pages.
-///
-/// It runs Pulse's own trackers on its own geometry, so it needs no
-/// permission; the live detectors skip Pulse's windows.
+/// The setup's tour: a short page with a link, two buttons, a field with an
+/// error, a list, headings, highlighted text, a stretch to scroll fast, and
+/// an end. Pulse's detectors never read Pulse's own windows, so the page
+/// cues itself, on the triggers the detectors use and by their rules
+/// (`TourCue`): the pointer moving onto a link or button, focus landing on
+/// the field, the list's selection changing, and, as it scrolls, Pulse's own
+/// trackers on its geometry (headings and highlights passing the reading
+/// line, the ends, the motion model). So it needs no permission.
 struct TourPage: NSViewRepresentable {
     var onCue: (Cue, _ feel: Bool, _ level: Float) -> Void
 
@@ -26,30 +25,35 @@ struct TourPage: NSViewRepresentable {
     }
 }
 
-final class TourScrollView: NSScrollView {
-    /// Where cues happen: a third of the way down, like the live reading line.
-    static let cueLine: CGFloat = 1.0 / 3.0
-
+final class TourScrollView: NSScrollView, NSTextFieldDelegate {
     var onCue: ((Cue, Bool, Float) -> Void)?
+    /// The tour's time; the self-test steps its own.
+    var clock: () -> CFTimeInterval = { CACurrentMediaTime() }
 
-    private struct Section {
-        var anchor: NSView
-        var cue: Cue?
-        var flash: HighlightView?
-        var arrive: (() -> Void)?
+    private struct Block {
+        var view: NSView
+        var gap: CGFloat
+        /// Nil: the column's width.
+        var width: CGFloat?
     }
 
     private let document = FlippedView()
-    private var blocks: [(view: NSView, gapBefore: CGFloat)] = []
-    private var sections: [Section] = []
-    private var lastTops: [CGFloat?] = []
+    private var blocks: [Block] = []
+    private var headings: [TourHeading] = []
+    private var marks: [NSView] = []
+    private let field = TourField()
+    private let error = NSTextField(labelWithString: "Enter an email address with an @.")
+    private let list = TourList()
+    private var landmarks = LandmarkTracker()
+    private var highlights = LandmarkTracker()
     private var boundaries = BoundaryTracker()
     private var motion = MotionModel()
     private var direction: ScrollDirection = .down
     private var newGesture = false
     private var lastOrigin: CGFloat = 0
     private var lastScroll: CFTimeInterval = -.infinity
-    private var tabs: NSSegmentedControl?
+    private var lastWheel: CFTimeInterval = -.infinity
+    private var lastNavigation: CFTimeInterval = -.infinity
 
     init() {
         super.init(frame: CGRect(x: 0, y: 0, width: 700, height: 320))
@@ -81,7 +85,7 @@ final class TourScrollView: NSScrollView {
     }
 
     #if DEBUG
-    /// UI snapshots open the tour scrolled this far, mid-page.
+    /// UI snapshots open the tour scrolled this far.
     static var snapshotScroll: CGFloat?
     private var snapshotScrolled = false
     #endif
@@ -89,93 +93,53 @@ final class TourScrollView: NSScrollView {
     // MARK: - Content
 
     private func build() {
-        add(label("Swipe down", size: 22, weight: .bold), gap: 12)
-        add(text("Rest two fingers on the trackpad and scroll slowly. Each section plays its cue as it reaches the line."), gap: 4)
-        let arrow = NSImageView(image: NSImage(systemSymbolName: "chevron.compact.down", accessibilityDescription: nil) ?? NSImage())
-        arrow.symbolConfiguration = .init(pointSize: 22, weight: .regular)
-        arrow.contentTintColor = .tertiaryLabelColor
-        arrow.imageAlignment = .alignLeft
-        add(arrow, gap: 70)
+        heading("Your account", level: 1, gap: 18)
+        add(text("Point at each button and at the link. Then click in the field."), gap: 6)
+        add(label("Email", size: 12, weight: .medium), gap: 16)
+        field.stringValue = "robin.example.com"
+        field.delegate = self
+        field.page = self
+        field.cell?.setAccessibilityLabel("Email")
+        add(field, gap: 4, width: 280)
+        error.font = .systemFont(ofSize: 11)
+        error.textColor = .systemRed
+        add(error, gap: 4)
+        let save = TourControl(title: "Save Changes", style: .push, page: self)
+        let delete = TourControl(title: "Delete Account…", style: .destructive, page: self)
+        let help = TourControl(title: "Get help", style: .link, page: self)
+        add(row([save, delete, help]), gap: 14)
 
-        let heading = label("A new section begins", size: 20, weight: .semibold)
-        section("Heading", anchor: heading, cue: .landmark, content: [
-            heading,
-            text("One soft pulse as a heading passes the line. Pulse marks main headings only, so long pages stay calm."),
-        ])
+        heading("Mailboxes", level: 2, gap: 44)
+        add(text("Click a mailbox, or use the arrow keys to move through the list."), gap: 6)
+        list.onSelect = { [weak self] in self?.selectionChanged() }
+        add(list, gap: 10, width: 220)
 
-        let link = CueButton(title: "a link like this one", cue: .actionable, style: .link) { [weak self] in self?.hovered($0) }
-        section("Link", cue: .actionable, flashing: link, content: [
-            row([text("Here is"), link]),
-            text("One light tick. Move the pointer onto it to feel it again."),
-        ])
+        heading("Scroll slowly", level: 2, gap: 44)
+        add(text("Each heading pulses once as it passes a third of the way down."), gap: 6)
+        let marked = NSTextField(wrappingLabelWithString: "")
+        marked.attributedStringValue = Self.highlighted()
+        marked.isSelectable = false
+        marks.append(marked)
+        add(marked, gap: 10)
 
-        let save = CueButton(title: "Save Changes", cue: .action, style: .push) { [weak self] in self?.hovered($0) }
-        section("Control", cue: .action, flashing: save, content: [
-            row([save]),
-            text("One firmer tick: a button, switch, tab, or menu that does something."),
-        ])
-
-        let delete = CueButton(title: "Delete Account…", cue: .caution, style: .destructive) { [weak self] in self?.hovered($0) }
-        section("Caution", cue: .caution, flashing: delete, content: [
-            row([delete]),
-            text("Two strong pulses: destructive actions, fields with errors, and alerts."),
-        ])
-
-        let tabs = NSSegmentedControl(labels: ["Inbox", "Drafts", "Sent", "Archive"], trackingMode: .selectOne, target: self, action: #selector(tabClicked))
-        tabs.selectedSegment = 0
-        self.tabs = tabs
-        section("Navigation", cue: .navigation, flashing: tabs, arrive: { [weak self] in self?.advanceTab() }, content: [
-            row([tabs]),
-            text("One crisp tick when the selected item in a sidebar, list, or tab strip changes. Click a tab."),
-        ])
-
-        let marked = NSTextField(labelWithAttributedString: Self.highlighted())
-        marked.lineBreakMode = .byWordWrapping
-        section("Waypoint", cue: .waypoint, flashing: marked, content: [
-            marked,
-            text("A rising pair for find-in-page matches and highlighted text. Optional, and off until you turn it on."),
-        ])
-
-        let flick = label("Now swipe down fast, and keep swiping", size: 20, weight: .semibold)
-        section("Glide and swell", anchor: flick, cue: nil, content: [
-            flick,
-            text("A burst of speed swells. Keep your fingers moving fast and it glides: faint pulses that come closer as you speed up and fade as you slow. Once your fingers lift, the page coasts silently."),
-        ])
+        heading("Scroll fast", level: 2, gap: 44)
+        add(text("Swipe fast and keep your fingers moving."), gap: 6)
         for index in 0..<18 {
             add(SkeletonCard(lines: 3 + index % 2), gap: 18)
         }
 
-        let end = label("The end of the page", size: 20, weight: .semibold)
-        section("Page end", anchor: end, cue: nil, content: [
-            end,
-            text("A landing, then a settle: there's no more page this way. It never repeats while you hold there. Scroll back up to feel the top."),
-        ])
-        add(spacer(24), gap: 0)
+        heading("End of the page", level: 2, gap: 44)
+        add(text("Scroll back up to feel the top."), gap: 6)
     }
 
-    private func section(
-        _ name: String, anchor: NSView? = nil, cue: Cue?, flashing: NSView? = nil,
-        arrive: (() -> Void)? = nil, content: [NSView]
-    ) {
-        let eyebrow = label(name.uppercased(), size: 11, weight: .semibold)
-        eyebrow.textColor = .controlAccentColor
-        add(eyebrow, gap: 230)
-        var highlight: HighlightView?
-        for (index, view) in content.enumerated() {
-            if let flashing, view === flashing || (view as? NSStackView)?.views.contains(flashing) == true {
-                let flash = HighlightView()
-                document.addSubview(flash, positioned: .below, relativeTo: nil)
-                flash.target = flashing
-                highlight = flash
-            }
-            add(view, gap: index == 0 ? 6 : 8)
-        }
-        sections.append(Section(anchor: anchor ?? eyebrow, cue: cue, flash: highlight, arrive: arrive))
-        lastTops.append(nil)
+    private func heading(_ string: String, level: Int, gap: CGFloat) {
+        let heading = TourHeading(string, level: level)
+        headings.append(heading)
+        add(heading, gap: gap)
     }
 
-    private func add(_ view: NSView, gap: CGFloat = 10) {
-        blocks.append((view, gap))
+    private func add(_ view: NSView, gap: CGFloat, width: CGFloat? = nil) {
+        blocks.append(Block(view: view, gap: gap, width: width))
         document.addSubview(view)
     }
 
@@ -184,22 +148,20 @@ final class TourScrollView: NSScrollView {
         let column = min(520, width - 48)
         let x = (width - column) / 2
         var y: CGFloat = 0
-        for (view, gap) in blocks {
-            y += gap
-            if let label = view as? NSTextField { label.preferredMaxLayoutWidth = column }
+        for block in blocks {
+            y += block.gap
+            let view = block.view
+            if let label = view as? NSTextField, !label.isEditable { label.preferredMaxLayoutWidth = column }
             let height: CGFloat = switch view {
-            case let spacer as SpacerView: spacer.height
             case let card as SkeletonCard: card.height
+            case let list as TourList: list.height
             default: view.fittingSize.height
             }
-            let fitted = view is NSStackView ? min(view.fittingSize.width, column) : column
+            let fitted = view is NSStackView ? min(view.fittingSize.width, column) : min(block.width ?? column, column)
             view.frame = CGRect(x: x, y: y, width: fitted, height: height)
             y += height
         }
-        // The last section can reach the cue line before the page ends.
-        let tail = max(contentView.bounds.height * (1 - Self.cueLine) - 120, 0)
-        document.frame = CGRect(x: 0, y: 0, width: width, height: y + tail)
-        for section in sections { section.flash?.follow() }
+        document.frame = CGRect(x: 0, y: 0, width: width, height: y + 28)
     }
 
     private func label(_ string: String, size: CGFloat, weight: NSFont.Weight) -> NSTextField {
@@ -221,49 +183,81 @@ final class TourScrollView: NSScrollView {
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
         stack.alignment = .firstBaseline
-        stack.spacing = 6
+        stack.spacing = 10
         return stack
     }
 
-    private func spacer(_ height: CGFloat) -> SpacerView { SpacerView(height: height) }
-
     private static func highlighted() -> NSAttributedString {
-        let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 15), .foregroundColor: NSColor.labelColor]
-        let result = NSMutableAttributedString(string: "Somewhere in the middle of a paragraph, ", attributes: base)
+        let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.secondaryLabelColor]
         var mark = base
+        mark[.foregroundColor] = NSColor.labelColor
         mark[.backgroundColor] = NSColor.systemYellow.withAlphaComponent(0.45)
-        result.append(NSAttributedString(string: "a highlighted phrase", attributes: mark))
-        result.append(NSAttributedString(string: " passes the line.", attributes: base))
+        let result = NSMutableAttributedString(string: "Highlighted text", attributes: mark)
+        result.append(NSAttributedString(
+            string: " pulses there too, as a waypoint. Waypoints are off until you turn them on in Settings › Cues.",
+            attributes: base
+        ))
         return result
     }
 
     // MARK: - Cues
 
-    private func hovered(_ cue: Cue) {
-        // A control sliding under a still pointer stays silent, as on live pages.
-        guard CACurrentMediaTime() - lastScroll > 0.3 else { return }
-        onCue?(cue, true, 1)
+    private func play(_ cue: Cue, feel: Bool = true, level: Float = 1) {
+        onCue?(cue, feel, level)
     }
 
-    @objc private func tabClicked() {
-        onCue?(.navigation, true, 1)
+    /// The pointer moved onto a link or button.
+    fileprivate func pointed(at control: NSButton) {
+        let (role, subrole) = Self.roles(of: control)
+        let cue = TourCue.hover(role: role, subrole: subrole, label: control.title, sinceScroll: clock() - lastScroll)
+        if let cue { play(cue) }
     }
 
-    private func advanceTab() {
-        guard let tabs else { return }
-        tabs.selectedSegment = (tabs.selectedSegment + 1) % tabs.segmentCount
+    /// Keyboard focus landed on a control or the field. Only focus a click
+    /// or a key moved counts: a window's first focus wasn't anyone's doing.
+    fileprivate func focused(_ view: NSView, by event: NSEvent.EventType?) {
+        guard event == .leftMouseDown || event == .keyDown else { return }
+        let (role, subrole) = Self.roles(of: view)
+        let cue = TourCue.focus(
+            role: role, subrole: subrole, label: (view as? NSButton)?.title, invalid: (view as? TourField)?.invalid,
+            sinceClick: event == .leftMouseDown ? 0 : .infinity
+        )
+        if let cue { play(cue) }
+    }
+
+    /// The role and subrole the accessibility tree reports, which for a
+    /// control is its cell's.
+    private static func roles(of view: NSView) -> (String, String?) {
+        let shown = NSAccessibility.unignoredDescendant(of: view) as? NSAccessibilityProtocol ?? view
+        return (shown.accessibilityRole()?.rawValue ?? "", shown.accessibilitySubrole()?.rawValue)
+    }
+
+    private func selectionChanged() {
+        let now = clock()
+        guard now - lastNavigation >= TourCue.navigationInterval else { return }
+        lastNavigation = now
+        play(.navigation)
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        error.isHidden = field.invalid != "true"
     }
 
     override func scrollWheel(with event: NSEvent) {
-        lastScroll = CACurrentMediaTime()
+        let now = clock()
+        let gap = now - lastWheel
+        lastWheel = now
+        lastScroll = now
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 10
-        if delta != 0 { direction = delta < 0 ? .down : .up }
-        if event.phase == .began { motion.newGesture(); newGesture = true }
+        // Trackpads mark a new gesture; wheel notches start one after a pause.
+        let discrete = event.phase == [] && event.momentumPhase == []
+        if event.phase == .began || (discrete && gap > 0.35) { newGesture = true }
+        if event.phase == .began { motion.newGesture() }
         let touching = event.phase != [] && event.momentumPhase == []
         if let pulse = motion.update(delta: delta, time: event.timestamp) {
             switch pulse {
-            case .swell: onCue?(.swell, touching, 1)
-            case let .glide(level): onCue?(.glide, touching, Float(level))
+            case .swell: play(.swell, feel: touching)
+            case let .glide(level): play(.glide, feel: touching, level: Float(level))
             }
         }
         super.scrollWheel(with: event)
@@ -272,34 +266,59 @@ final class TourScrollView: NSScrollView {
     @objc private func boundsChanged() {
         let visible = contentView.bounds
         guard visible.minY != lastOrigin else { return }
+        direction = visible.minY > lastOrigin ? .down : .up
         lastOrigin = visible.minY
-        let now = CACurrentMediaTime()
+        // Content moving under a still pointer: what slides beneath it stays silent.
+        lastScroll = clock()
+        probe(visible)
+    }
+
+    /// One look at the page as it scrolls, in the order the live detector
+    /// looks: the ends, then highlights, then headings, one cue at most.
+    private func probe(_ visible: CGRect) {
+        let now = clock()
         let edges = EdgeState(atTop: visible.minY <= 0.5, atBottom: visible.maxY >= document.frame.height - 0.5)
-        let isNew = newGesture
+        let isNewGesture = newGesture
         newGesture = false
-        if direction == .down ? edges.atBottom : edges.atTop { motion.hold() }
-        if boundaries.update(edges: edges, direction: direction, isNewGesture: isNew, now: now) {
-            onCue?(.boundary, true, 1)
+        // Nothing left to travel: the bounce glides no further.
+        if !(edges.atTop && edges.atBottom), direction == .down ? edges.atBottom : edges.atTop { motion.hold() }
+        if boundaries.update(edges: edges, direction: direction, isNewGesture: isNewGesture, now: now) {
+            return play(.boundary)
         }
-        // A section's cue plays as its top crosses the line, either way.
-        let line = visible.height * Self.cueLine
-        for index in sections.indices {
-            let top = sections[index].anchor.frame.minY - visible.minY
-            defer { lastTops[index] = top }
-            guard let previous = lastTops[index], (previous - line) * (top - line) < 0 || (top == line && previous != line) else { continue }
-            sections[index].arrive?()
-            sections[index].flash?.flash()
-            if let cue = sections[index].cue { onCue?(cue, true, 1) }
+        // Where each sits in the viewport, as the live detector reads it on screen.
+        func onScreen(_ view: NSView) -> Double { Double(view.frame.minY - visible.minY) }
+        let height = Double(visible.height)
+        let marked = marks.enumerated().map { HeadingSample(id: $0.offset, level: nil, top: onScreen($0.element)) }
+        if highlights.update(headings: marked, viewportTop: 0, viewportBottom: height, now: now) != nil {
+            return play(.waypoint)
+        }
+        let samples = headings.enumerated().map { HeadingSample(id: $0.offset, level: $0.element.level, top: onScreen($0.element)) }
+        if landmarks.update(headings: samples, viewportTop: 0, viewportBottom: height, now: now) != nil {
+            play(.landmark)
         }
     }
 
     #if DEBUG
-    /// The self-test scrolls the page directly.
-    func simulateScroll(to y: CGFloat, direction: ScrollDirection) {
-        self.direction = direction
+    /// The self-test scrolls, points and clicks directly.
+    func simulateScroll(to y: CGFloat) {
         contentView.scroll(to: CGPoint(x: 0, y: y))
         reflectScrolledClipView(contentView)
         boundsChanged()
+    }
+
+    func simulatePointing(at title: String) {
+        if let control = document.subviews.lazy.compactMap({ $0 as? NSStackView }).flatMap(\.views)
+            .compactMap({ $0 as? TourControl }).first(where: { $0.title == title }) {
+            pointed(at: control)
+        }
+    }
+
+    func simulateClickInField() {
+        focused(field, by: .leftMouseDown)
+    }
+
+    func simulateSelecting(row: Int) {
+        list.selectRowIndexes([row], byExtendingSelection: false)
     }
 
     var documentHeight: CGFloat { document.frame.height }
@@ -310,15 +329,129 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
-private final class SpacerView: NSView {
-    let height: CGFloat
-    init(height: CGFloat) {
-        self.height = height
+/// A section heading, exposed to VoiceOver as one.
+private final class TourHeading: NSTextField {
+    let level: Int
+
+    init(_ string: String, level: Int) {
+        self.level = level
         super.init(frame: .zero)
-        setAccessibilityElement(false)
+        stringValue = string
+        isEditable = false
+        isSelectable = false
+        isBezeled = false
+        isBordered = false
+        drawsBackground = false
+        font = .systemFont(ofSize: level == 1 ? 22 : 18, weight: level == 1 ? .bold : .semibold)
+        cell?.setAccessibilityRole(NSAccessibility.Role(rawValue: "AXHeading"))
     }
 
     required init?(coder: NSCoder) { nil }
+}
+
+/// A link or button that cues as the pointer moves onto it, once per entry,
+/// and as keyboard focus lands on it.
+private final class TourControl: NSButton {
+    enum Style { case link, push, destructive }
+
+    private let style: Style
+    private weak var page: TourScrollView?
+
+    init(title: String, style: Style, page: TourScrollView) {
+        self.style = style
+        self.page = page
+        super.init(frame: .zero)
+        self.title = title
+        switch style {
+        case .link:
+            cell?.setAccessibilityRole(.link)
+            isBordered = false
+            attributedTitle = NSAttributedString(string: title, attributes: [
+                .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .font: NSFont.systemFont(ofSize: 13),
+            ])
+        case .push:
+            bezelStyle = .push
+        case .destructive:
+            bezelStyle = .push
+            hasDestructiveAction = true
+            contentTintColor = .systemRed
+        }
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func resetCursorRects() {
+        if style == .link { addCursorRect(bounds, cursor: .pointingHand) } else { super.resetCursorRects() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        page?.pointed(at: self)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { page?.focused(self, by: NSApp.currentEvent?.type) }
+        return became
+    }
+}
+
+/// An email field whose error shows until the address has an @.
+private final class TourField: NSTextField {
+    weak var page: TourScrollView?
+
+    /// What a web page's `AXInvalid` would say.
+    var invalid: String { stringValue.contains("@") ? "false" : "true" }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { page?.focused(self, by: NSApp.currentEvent?.type) }
+        return became
+    }
+}
+
+/// A list of mailboxes, like a mail app's sidebar.
+private final class TourList: NSTableView, NSTableViewDataSource, NSTableViewDelegate {
+    private let names = ["Inbox", "Drafts", "Sent", "Archive"]
+    var onSelect: (() -> Void)?
+
+    var height: CGFloat { CGFloat(names.count) * (rowHeight + intercellSpacing.height) }
+
+    init() {
+        super.init(frame: .zero)
+        addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name")))
+        headerView = nil
+        style = .plain
+        rowHeight = 24
+        backgroundColor = .clear
+        dataSource = self
+        reloadData()
+        selectRowIndexes([0], byExtendingSelection: false)
+        // After the first selection, so only a person's changes cue.
+        delegate = self
+        setAccessibilityLabel("Mailboxes")
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { names.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let label = NSTextField(labelWithString: names[row])
+        label.font = .systemFont(ofSize: 13)
+        return label
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        onSelect?()
+    }
 }
 
 /// Placeholder content for the fast stretch, like a page still loading.
@@ -345,81 +478,4 @@ private final class SkeletonCard: NSView {
             NSBezierPath(roundedRect: CGRect(x: 14, y: 14 + CGFloat(line) * 18, width: width, height: 9), xRadius: 4.5, yRadius: 4.5).fill()
         }
     }
-}
-
-/// A soft accent glow behind an element, flashed as its cue plays.
-private final class HighlightView: NSView {
-    weak var target: NSView?
-
-    init() {
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor
-        alphaValue = 0
-        setAccessibilityElement(false)
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    func follow() {
-        guard let target, let superview, let container = target.superview else { return }
-        frame = superview.convert(target.frame, from: container).insetBy(dx: -8, dy: -6)
-    }
-
-    func flash() {
-        follow()
-        alphaValue = 1
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.7
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            animator().alphaValue = 0
-        }
-    }
-}
-
-/// A button that cues as the pointer moves onto it, once per entry.
-private final class CueButton: NSButton {
-    enum Style { case link, push, destructive }
-
-    private let cue: Cue
-    private let onCue: (Cue) -> Void
-
-    init(title: String, cue: Cue, style: Style, onCue: @escaping (Cue) -> Void) {
-        self.cue = cue
-        self.onCue = onCue
-        super.init(frame: .zero)
-        self.title = title
-        target = self
-        action = #selector(pressed)
-        switch style {
-        case .link:
-            isBordered = false
-            attributedTitle = NSAttributedString(string: title, attributes: [
-                .foregroundColor: NSColor.linkColor,
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-                .font: NSFont.systemFont(ofSize: 13),
-            ])
-        case .push:
-            bezelStyle = .push
-        case .destructive:
-            bezelStyle = .push
-            hasDestructiveAction = true
-            contentTintColor = .systemRed
-        }
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        onCue(cue)
-    }
-
-    @objc private func pressed() {}
 }

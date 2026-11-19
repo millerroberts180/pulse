@@ -1,8 +1,7 @@
 import AppKit
 import PulseCore
 
-/// Plays cues on request, for the setup, Settings › Cues, and the tour
-/// page. Previews ignore mute and the per-cue switches: feeling a cue is
+/// Plays cues on request, for Settings and the setup's tour page. Previews ignore mute and the per-cue switches: feeling a cue is
 /// how it is learned, and muting Pulse must not stop someone learning it.
 final class CuePreviewer {
     private let haptics: HapticOutput
@@ -31,8 +30,7 @@ final class CuePreviewer {
         }
     }
 
-    /// One pulse of the cue, even a glide (the cue picker's pads play a
-    /// glide pulse per stretch of travel).
+    /// One pulse of the cue, even a glide.
     func feel(_ cue: Cue) {
         generation += 1
         haptics.preview(cue)
@@ -49,15 +47,17 @@ final class CuePreviewer {
         }
     }
 
-    /// A cue from the practice page: the live policy decides (one action,
-    /// one cue), but mute and the cue switches don't.
-    func practice(_ cue: Cue, feel: Bool, level: Float) {
-        guard haptics.play(cue, feel: feel, ignoringMute: true) else { return }
+    /// A cue from the tour page: the live policy decides (one action, one
+    /// cue), but mute and the cue switches don't. Returns whether it played.
+    @discardableResult
+    func practice(_ cue: Cue, feel: Bool, level: Float) -> Bool {
+        guard haptics.play(cue, feel: feel, ignoringMute: true) else { return false }
         if soundIsOn(for: cue) { sound(cue, level: level) }
+        return true
     }
 
-    /// Keys from the setup's on-screen keyboard, voiced with the chosen
-    /// profile and switches, exactly as live typing would be.
+    /// Keys from the on-screen keyboard in Settings › Keyboard, voiced with
+    /// the chosen profile and switches, exactly as live typing would be.
     func type(_ moments: [KeyMoment]) {
         let settings = store.value
         let profile = settings.keyboardEnabled ? settings.keyboardProfile : .quiet

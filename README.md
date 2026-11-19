@@ -18,7 +18,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/cues-dark.png">
     <img src="docs/images/cues-light.png" width="820"
-         alt="Choosing cues in setup: every tap in a list, each with a pad to feel it and a switch to turn it on or off">
+         alt="Pulse's setup tour: a short page with an email field showing an error, two buttons and a link, and below it the taps felt so far: Link, Control and Caution">
   </picture>
 </p>
 
@@ -39,7 +39,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/tour-dark.png">
     <img src="docs/images/tour-light.png" width="820"
-         alt="Pulse's setup tour: a practice page with a line across it, where each heading, link and button taps as it scrolls past the line">
+         alt="Pulse's setup tour scrolled down to its headings and highlighted text, with each tap ticked off below the page once felt">
   </picture>
 </p>
 

@@ -1,8 +1,8 @@
 import PulseCore
 import SwiftUI
 
-/// The typing sounds, as tiles like the cue picker's: one to choose, each
-/// with a play button to hear a short phrase typed with it.
+/// The typing sounds, as tiles: one to choose, each with a play button to
+/// hear a short phrase typed with it.
 struct KeyboardPicker: View {
     @ObservedObject var store: SettingsStore
     var previewer: CuePreviewer
@@ -121,7 +121,6 @@ struct KeyboardPicker: View {
 struct BoardPicker: View {
     @ObservedObject var store: SettingsStore
     var previewer: CuePreviewer
-    var compact = false
 
     static func name(_ board: KeyboardBoard) -> String {
         switch board {
@@ -146,11 +145,9 @@ struct BoardPicker: View {
             HStack(spacing: 8) {
                 ForEach(KeyboardBoard.allCases, id: \.self) { board in tile(board) }
             }
-            if !compact {
-                Text(Self.detail(store.value.keyboardBoard))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(Self.detail(store.value.keyboardBoard))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -164,7 +161,7 @@ struct BoardPicker: View {
             VStack(spacing: 5) {
                 SignatureBars(levels: board.signature, highlighted: selected)
                     .frame(maxWidth: .infinity)
-                    .frame(height: compact ? 26 : 34)
+                    .frame(height: 34)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(selected ? 0.10 : 0.05)))

@@ -68,7 +68,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         let status = status()
 
         menu.addItem(disabled(statusLine(status)))
-        if let quiet = keyboardQuietLine(status.keyboard) { menu.addItem(disabled(quiet)) }
+        if let quiet = Self.keyboardQuietLine(status.keyboard) { menu.addItem(disabled(quiet)) }
         if !status.trusted {
             menu.addItem(item("Grant Access…") { [weak self] in self?.onRequestPermission?() })
         }
@@ -102,8 +102,9 @@ final class MenuController: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Only when typing has gone quiet on its own, so the silence is explained.
-    private func keyboardQuietLine(_ status: KeyboardController.Status) -> String? {
+    /// Only when typing has gone quiet on its own, so the silence is
+    /// explained. The setup's typing step says it too.
+    static func keyboardQuietLine(_ status: KeyboardController.Status) -> String? {
         switch status {
         case .microphoneInUse: "Typing paused: mic in use"
         case .mediaPlaying: "Typing paused: audio playing"

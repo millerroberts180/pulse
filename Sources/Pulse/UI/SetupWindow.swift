@@ -3,38 +3,36 @@ import ApplicationServices
 import PulseCore
 import SwiftUI
 
-/// The interactive setup: what Pulse is, a tour page where every cue happens
-/// as you swipe down it, then every cue in a line to feel again and switch on
-/// or off, the typing sound on a keyboard to try, the one permission, and
-/// open at login. Opened again later, it's only the tutorial: tour, cues,
-/// and typing.
+/// The setup: a tour page where every cue happens as you point at it and
+/// scroll it, the one permission, the typing sound to try by typing for
+/// real, and the menu bar, the mute shortcut, and open at login. Opened
+/// again later, it's the tutorial: the same steps without the permission
+/// and open at login.
 @MainActor
 final class SetupModel: ObservableObject {
-    enum Step: Int, CaseIterable {
-        case welcome, tour, cues, typing, permission, done
-    }
-
+    let tutorialOnly: Bool
     /// The steps this run shows.
-    let steps: [Step]
-    @Published var step: Step
+    let steps: [SetupStep]
+    @Published var step: SetupStep
     @Published var trusted = AXIsProcessTrusted()
     @Published var openAtLogin = true
-    /// Cues felt on the tour, for its checklist.
-    @Published var felt: Set<Cue> = []
-    @Published var lastTourCue: Cue?
+    @Published var tour = TourChecklist()
+    /// Live typing's state, so the typing step can say why it's silent.
+    @Published var keyboard: KeyboardController.Status
 
     let store: SettingsStore
     let previewer: CuePreviewer
     var onFinish: (() -> Void)?
     var onRequestPermission: (() -> Void)?
-    var onTypingDemo: (Bool) -> Void = { _ in }
 
     private var trustTimer: Timer?
 
-    init(store: SettingsStore, previewer: CuePreviewer, tutorialOnly: Bool = false) {
+    init(store: SettingsStore, previewer: CuePreviewer, tutorialOnly: Bool = false, keyboard: KeyboardController.Status = .off) {
         self.store = store
         self.previewer = previewer
-        steps = tutorialOnly ? [.tour, .cues, .typing] : Step.allCases
+        self.tutorialOnly = tutorialOnly
+        self.keyboard = keyboard
+        steps = SetupStep.steps(tutorialOnly: tutorialOnly)
         step = steps[0]
         openAtLogin = LoginItem.isEnabled || !UserDefaults.standard.bool(forKey: SetupWindowController.completedKey)
     }
@@ -46,6 +44,7 @@ final class SetupModel: ObservableObject {
         guard let index = steps.firstIndex(of: step), index + 1 < steps.count else { return finish() }
         step = steps[index + 1]
         if step == .permission { watchTrust() }
+        if step == .typing { trusted = AXIsProcessTrusted() }
     }
 
     func back() {
@@ -56,7 +55,7 @@ final class SetupModel: ObservableObject {
     func finish() {
         trustTimer?.invalidate()
         trustTimer = nil
-        if steps.contains(.done), openAtLogin != LoginItem.isEnabled { LoginItem.set(openAtLogin) }
+        if !tutorialOnly, openAtLogin != LoginItem.isEnabled { LoginItem.set(openAtLogin) }
         onFinish?()
     }
 
@@ -66,12 +65,18 @@ final class SetupModel: ObservableObject {
         watchTrust()
     }
 
-    /// A cue from the tour. It counts as felt only if a finger was on the
-    /// trackpad: momentum after a flick is travel you can't feel.
+    /// A cue from the tour. It ticks off only if it played (one action, one
+    /// cue) with a finger on the trackpad: momentum after a flick is travel
+    /// you can't feel.
     func toured(_ cue: Cue, feel: Bool, level: Float) {
-        previewer.practice(cue, feel: feel, level: level)
-        if feel { felt.insert(cue) }
-        lastTourCue = cue
+        guard previewer.practice(cue, feel: feel, level: level) else { return }
+        tour.played(cue, felt: feel)
+    }
+
+    func keyboardChanged(_ status: KeyboardController.Status) {
+        keyboard = status
+        // Typing starts once the grant lands.
+        trusted = AXIsProcessTrusted()
     }
 
     private func watchTrust() {
@@ -101,11 +106,10 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
 
     init(
-        store: SettingsStore, previewer: CuePreviewer, tutorialOnly: Bool,
-        onRequestPermission: @escaping () -> Void, onTypingDemo: @escaping (Bool) -> Void
+        store: SettingsStore, previewer: CuePreviewer, tutorialOnly: Bool, keyboard: KeyboardController.Status,
+        onRequestPermission: @escaping () -> Void
     ) {
-        model = SetupModel(store: store, previewer: previewer, tutorialOnly: tutorialOnly)
-        model.onTypingDemo = onTypingDemo
+        model = SetupModel(store: store, previewer: previewer, tutorialOnly: tutorialOnly, keyboard: keyboard)
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: Self.size),
             styleMask: Self.style,
@@ -139,9 +143,11 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
         window?.orderFrontRegardless()
     }
 
+    func keyboardChanged(_ status: KeyboardController.Status) {
+        model.keyboardChanged(status)
+    }
+
     func windowWillClose(_ notification: Notification) {
-        // Closing on the typing step must give live typing its sound back.
-        model.onTypingDemo(false)
         onClose?()
     }
 }
@@ -154,11 +160,9 @@ struct SetupView: View {
         VStack(spacing: 0) {
             Group {
                 switch model.step {
-                case .welcome: narrow { welcome }
                 case .tour: tour
-                case .cues: cues
-                case .typing: typing
                 case .permission: narrow { permission }
+                case .typing: typing
                 case .done: narrow { done }
                 }
             }
@@ -173,8 +177,9 @@ struct SetupView: View {
                 if !model.isFirst {
                     Button("Back") { model.back() }
                 }
-                Button(model.isLast ? (model.step == .done ? "Start Using Pulse" : "Done") : "Continue") { model.next() }
-                    .keyboardShortcut(.defaultAction)
+                // Return belongs to the typing box while it's up.
+                Button(model.isLast ? (model.tutorialOnly ? "Done" : "Start Using Pulse") : "Continue") { model.next() }
+                    .keyboardShortcut(model.step == .typing ? nil : .defaultAction)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -213,45 +218,17 @@ struct SetupView: View {
 
     // MARK: - Steps
 
-    private var welcome: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(nsImage: PulseLogo.iconImage(size: 64))
-                .accessibilityHidden(true)
-                .padding(.bottom, 10)
-            title("Welcome to Pulse", "A quiet physical language for browsing and typing. Small trackpad cues tell you about the page; nothing pulses while you read.")
-            feature("hand.tap", "Feel the page", "Headings, links, controls, cautions, and page ends, from what macOS Accessibility exposes. No browser extension.")
-            feature("wind", "Motion scrolling", "Silent when you scroll carefully; a sparse glide when you travel fast.")
-            feature("keyboard", "Typing sound", "Warm key sounds, or KeySense: quiet cues that confirm keys without saying what you typed.")
-            feature("lock", "Private by design", "Pulse never keeps page text, URLs, form values, or what you type, and nothing leaves your Mac.")
-            Text("Next, a short tour page: swipe down it to meet every cue.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .padding(.top, 6)
-        }
-    }
-
-    private func feature(_ symbol: String, _ name: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol)
-                .font(.system(size: 18))
-                .frame(width: 28)
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.system(size: 13, weight: .semibold))
-                Text(text).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.bottom, 14)
-    }
-
     private var tour: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("Take the tour", "Swipe down slowly with two fingers. Each section plays its cue as it crosses the line, and its part of the page lights up.")
-            FakeBrowser {
-                TourPage { cue, feel, level in model.toured(cue, feel: feel, level: level) }
+            HStack(alignment: .top, spacing: 14) {
+                Image(nsImage: PulseLogo.iconImage(size: 44))
+                    .accessibilityHidden(true)
+                title("Feel the page", "Pulse taps the trackpad to tell you what's under the pointer and where you are on a page. Point at things on this page, then scroll it.")
             }
-            .frame(height: 344)
+            TourPage { cue, feel, level in model.toured(cue, feel: feel, level: level) }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.25)))
+                .frame(height: 360)
             checklist
                 .padding(.top, 12)
         }
@@ -263,7 +240,7 @@ struct SetupView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 ForEach(CueInfo.all) { info in
-                    let felt = model.felt.contains(info.cue)
+                    let felt = model.tour.felt.contains(info.cue)
                     HStack(spacing: 4) {
                         Image(systemName: felt ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 10))
@@ -278,7 +255,7 @@ struct SetupView: View {
                 }
             }
             Group {
-                if let cue = model.lastTourCue, let info = CueInfo.info(for: cue) {
+                if let cue = model.tour.latest, let info = CueInfo.info(for: cue) {
                     Text("\(info.name): ").fontWeight(.semibold) + Text(info.meaning)
                 } else {
                     Text("Cues are named here as you feel them.")
@@ -290,59 +267,14 @@ struct SetupView: View {
         }
     }
 
-    private var cues: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            title("Choose your cues", "Every cue, in a line. Swipe over a pad to feel it, and switch off any you don't want. You can change these later in Settings.")
-            CuePicker(store: store, previewer: model.previewer)
-            Text("Waypoints start off: they're for find-in-page matches, which Safari and Chromium browsers report, and highlighted text, which only Safari does.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.top, 18)
-        }
-    }
-
-    private var typing: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            title("Choose a typing sound", "Pick one, then type or click the keys to hear it. Pulse hears key groups, never characters.")
-            HStack(alignment: .top, spacing: 18) {
-                KeyboardPicker(store: store, previewer: model.previewer, tileWidth: 92, compact: true)
-                if [.mechanical, .ambient].contains(store.value.keyboardProfile) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Board").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        BoardPicker(store: store, previewer: model.previewer, compact: true)
-                    }
-                }
-            }
-            KeyboardDemo(store: store, previewer: model.previewer, onActive: model.onTypingDemo)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 14)
-            HStack(spacing: 18) {
-                HStack(spacing: 6) {
-                    Image(systemName: "speaker.fill").foregroundStyle(.secondary)
-                    Slider(value: $store.value.keyboardVolume, in: 0...1).frame(width: 130)
-                    Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
-                }
-                Toggle("Release sounds", isOn: $store.value.keyReleaseSounds)
-                Toggle("Feel Caps Lock and shortcuts", isOn: $store.value.keyboardHaptics)
-            }
-            .toggleStyle(.checkbox)
-            .font(.system(size: 12))
-            .frame(maxWidth: .infinity)
-            .padding(.top, 14)
-        }
-    }
-
     private var permission: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("One permission", "Pulse needs Accessibility access to recognise controls and headings in other apps, and to notice key presses for typing sounds.")
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Reads roles, states, and positions: \"a button\", \"a heading at this height\".", systemImage: "checkmark.circle")
-                Label("Never keeps page text, URLs, form values, or what you type.", systemImage: "checkmark.circle")
-                Label("Nothing is recorded or sent anywhere.", systemImage: "checkmark.circle")
-            }
-            .font(.system(size: 12))
-            .foregroundStyle(.secondary)
-            .padding(.bottom, 20)
+            title("Allow Accessibility access", "Pulse needs it to find links, buttons and headings in other apps, and for typing sounds, which come next.")
+            Label("Pulse never keeps page text, URLs, form values or what you type, and nothing is recorded or sent.", systemImage: "lock")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 20)
 
             if model.trusted {
                 Label("Accessibility access is on.", systemImage: "checkmark.seal.fill")
@@ -350,7 +282,7 @@ struct SetupView: View {
                     .font(.system(size: 13, weight: .medium))
             } else {
                 Button("Open System Settings…") { model.requestPermission() }
-                Text("Turn Pulse on in Privacy & Security › Accessibility. This page notices when you do. You can also continue and do it later from the menu bar.")
+                Text("Turn Pulse on in Privacy & Security › Accessibility. This page notices when you do. You can also do it later with Grant Access… in Pulse's menu.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -359,69 +291,69 @@ struct SetupView: View {
         }
     }
 
+    private var typing: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title("Choose a typing sound", "Pick one, then type in the box to hear it. The board, volume and the rest are in Settings › Keyboard.")
+            KeyboardPicker(store: store, previewer: model.previewer, tileWidth: 186)
+            TypingField()
+                .padding(.top, 18)
+            if let note = typingNote {
+                Label(note, systemImage: "info.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
+            }
+        }
+    }
+
+    /// Why typing in the box makes no sound, when it doesn't, in the menu's words.
+    private var typingNote: String? {
+        guard model.trusted else { return "Typing sounds need Accessibility access. Turn it on with Grant Access… in Pulse's menu." }
+        if model.keyboard == .mutedByUser { return "Pulse is muted. Press \(MuteHotKey.display) to unmute it." }
+        return MenuController.keyboardQuietLine(model.keyboard)
+    }
+
     private var done: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("You're set", "Pulse lives in the menu bar. It stays quiet in password fields, while the microphone or other audio is in use, and in apps you turn it off for.")
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Mute everything with \(MuteHotKey.display).", systemImage: "hand.raised.slash")
-                Label("Feel any cue again, or switch it off, in Settings › Cues.", systemImage: "hand.tap")
-                Label("Fine-tune motion and sound in Settings.", systemImage: "slider.horizontal.3")
+            Text("You're set")
+                .font(.system(size: 22, weight: .semibold))
+                .padding(.bottom, 16)
+            VStack(alignment: .leading, spacing: 12) {
+                Label {
+                    Text("Pulse lives in the menu bar. Its menu can mute Pulse, turn it off in the app you're using, and open Settings.")
+                } icon: {
+                    Image(nsImage: PulseLogo.statusImage(muted: false))
+                }
+                Label("Press \(MuteHotKey.display) anywhere to mute or unmute Pulse.", systemImage: "keyboard")
             }
             .font(.system(size: 13))
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.bottom, 20)
-            Toggle("Open Pulse at login", isOn: $model.openAtLogin)
-                .toggleStyle(.checkbox)
+            if !model.tutorialOnly {
+                Toggle("Open Pulse at login", isOn: $model.openAtLogin)
+                    .toggleStyle(.checkbox)
+            }
         }
     }
 }
 
-/// A plain browser frame around the tour, so it reads as a web page, with
-/// the cue line marked a third of the way down the page.
-private struct FakeBrowser<Content: View>: View {
-    @ViewBuilder var content: Content
+/// A box to type in. Live typing plays the sound, through the same key tap
+/// as in any other app. What's typed is only in the box, and gone with it.
+private struct TypingField: View {
+    @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                ForEach([Color.red, .yellow, .green], id: \.self) { color in
-                    Circle().fill(color.opacity(0.55)).frame(width: 9, height: 9)
-                }
-                Spacer()
-                HStack(spacing: 5) {
-                    Image(systemName: "lock.fill").font(.system(size: 9))
-                    Text("pulse.tour/everything-you-can-feel").font(.system(size: 11))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                Spacer()
-                Color.clear.frame(width: 39, height: 9)
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 30)
-            .background(Color.secondary.opacity(0.08))
-            .accessibilityHidden(true)
-
-            content
-                .overlay(alignment: .topLeading) {
-                    GeometryReader { geometry in
-                        let y = geometry.size.height * TourScrollView.cueLine
-                        Path { path in
-                            path.move(to: CGPoint(x: 0, y: y))
-                            path.addLine(to: CGPoint(x: geometry.size.width, y: y))
-                        }
-                        .stroke(Color.accentColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
-                        Text("cue line")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(Color.accentColor.opacity(0.8))
-                            .position(x: geometry.size.width - 34, y: y - 8)
-                    }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.25)))
+        TextEditor(text: $text)
+            .font(.system(size: 13))
+            .scrollContentBackground(.hidden)
+            .padding(8)
+            .frame(height: 84)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.3)))
+            .focused($focused)
+            .accessibilityLabel("Type here to hear the typing sound")
+            .onAppear { focused = true }
     }
 }

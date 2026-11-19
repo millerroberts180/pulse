@@ -439,7 +439,7 @@ private struct KeyboardPane: View {
                 }
             }
             Section {
-                KeyboardDemo(store: store, previewer: previewer, size: .small, onActive: onTypingDemo)
+                KeyboardDemo(store: store, previewer: previewer, onActive: onTypingDemo)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
             } header: {

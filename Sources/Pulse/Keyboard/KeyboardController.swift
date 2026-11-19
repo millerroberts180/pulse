@@ -24,8 +24,8 @@ final class KeyboardController {
     private var frontmostExcluded = false
     /// Another app is playing audio (see `MediaMonitor`).
     private var mediaPlaying = false
-    /// On-screen keyboards (the setup's, Settings') in front and voicing
-    /// keys themselves.
+    /// The on-screen keyboard in Settings › Keyboard, in front and voicing
+    /// keys itself.
     private var demos: Set<String> = []
     private var demoActive: Bool { !demos.isEmpty }
     /// Accessibility is granted and detectors may run.

@@ -5,12 +5,13 @@ Everything Pulse does, exactly. For the short version, see the
 
 ## Setup
 
-The first time Pulse opens, a short setup walks you through it: what Pulse
-does, a practice page where every tap happens as you scroll down it, every tap
-in a line to feel and switch on or off, the typing sound on a keyboard you can
-try, the Accessibility permission, and open at login. Later, Settings ›
-General › Open Tutorial… brings back the practice page, the taps and the
-typing sound.
+The first time Pulse opens, a short setup walks you through it: a practice
+page to point at and scroll, where each tap is named as you feel it; the
+Accessibility permission; the typing sound, heard as you type in a box; and
+the menu-bar icon, the mute shortcut and open at login. Later, Settings ›
+General › Open Tutorial… brings back the practice page, the typing sound and
+the menu-bar icon. Which taps play is in Settings › Cues, and the board,
+volume and the rest of typing are in Settings › Keyboard.
 
 Pulse needs Accessibility access to tell a link from a button and to notice
 key presses. Setup's permission step opens System Settings › Privacy &
@@ -87,7 +88,7 @@ switches on ABS keycaps. No recordings ship with Pulse.
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="images/typing-dark.png">
     <img src="images/typing-light.png" width="820"
-         alt="Choosing a typing sound in setup: Ambient, Mechanical, KeySense and Quiet, the four boards, and an on-screen Mac keyboard to try them on">
+         alt="Choosing a typing sound in setup: Ambient, Mechanical, KeySense and Quiet, and a box to type in and hear the one you pick">
   </picture>
 </p>
 

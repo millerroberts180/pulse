@@ -12,45 +12,37 @@ import SwiftUI
 /// in front, and then Pulse's live typing sound stands aside so nothing plays
 /// twice.
 struct KeyboardDemo: View {
-    enum Size {
-        /// The setup's typing step.
-        case regular
-        /// Settings › Keyboard.
-        case small
-
-        var unit: CGFloat { self == .regular ? 33 : 22 }
-        var gap: CGFloat { self == .regular ? 4 : 3 }
-    }
+    /// A key's width and height, and the gap between keys.
+    private let unit: CGFloat = 22
+    private let gap: CGFloat = 3
 
     @StateObject private var model: TypingDemoModel
-    private let size: Size
 
-    init(store: SettingsStore, previewer: CuePreviewer, size: Size = .regular, onActive: @escaping (Bool) -> Void) {
-        self.size = size
+    init(store: SettingsStore, previewer: CuePreviewer, onActive: @escaping (Bool) -> Void) {
         _model = StateObject(wrappedValue: TypingDemoModel(store: store, previewer: previewer, onActive: onActive))
     }
 
     var body: some View {
-        VStack(spacing: size.gap) {
+        VStack(spacing: gap) {
             ForEach(Array(KeyCap.rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: size.gap) {
+                HStack(spacing: gap) {
                     ForEach(row) { key in
                         if key.code == KeyCap.arrowCluster {
                             arrows
                         } else {
-                            keyView(key, height: size.unit)
+                            keyView(key, height: unit)
                         }
                     }
                 }
             }
         }
-        .padding(size == .regular ? 10 : 8)
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: size == .regular ? 14 : 11, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .fill(Color.primary.opacity(0.07))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: size == .regular ? 14 : 11, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08))
         )
         .background(WindowReader { model.attach(to: $0) })
@@ -62,37 +54,37 @@ struct KeyboardDemo: View {
 
     /// ← ↑↓ →, with Up and Down half height, stacked, as on a Mac.
     private var arrows: some View {
-        HStack(spacing: size.gap) {
-            keyView(KeyCap(code: 123, label: "←"), height: size.unit)
+        HStack(spacing: gap) {
+            keyView(KeyCap(code: 123, label: "←"), height: unit)
             VStack(spacing: 2) {
-                keyView(KeyCap(code: 126, label: "↑"), height: (size.unit - 2) / 2)
-                keyView(KeyCap(code: 125, label: "↓"), height: (size.unit - 2) / 2)
+                keyView(KeyCap(code: 126, label: "↑"), height: (unit - 2) / 2)
+                keyView(KeyCap(code: 125, label: "↓"), height: (unit - 2) / 2)
             }
-            keyView(KeyCap(code: 124, label: "→"), height: size.unit)
+            keyView(KeyCap(code: 124, label: "→"), height: unit)
         }
     }
 
     private func keyView(_ key: KeyCap, height: CGFloat) -> some View {
         let down = model.pressed.contains(key.code) || (key.code == KeyClassifier.capsLockKeyCode && model.capsLock)
-        let width = key.width * size.unit + (key.width - 1) * size.gap
-        let label = size == .small ? key.shortLabel : key.label
+        let width = key.width * unit + (key.width - 1) * gap
+        let label = key.shortLabel
         let wordy = label.count > 2
-        let radius: CGFloat = size == .regular ? 6 : 4.5
+        let radius: CGFloat = 4.5
         return ZStack {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(down ? Color.accentColor.opacity(0.38) : Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(down ? 0 : 0.22), radius: 0, x: 0, y: down ? 0 : (size == .regular ? 1.5 : 1))
+                .shadow(color: .black.opacity(down ? 0 : 0.22), radius: 0, x: 0, y: down ? 0 : 1)
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(down ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: down ? 1.5 : 1)
             Text(label)
-                .font(.system(size: size == .regular ? (wordy ? 9 : 11) : (wordy ? 7 : 9), weight: .medium))
+                .font(.system(size: wordy ? 7 : 9, weight: .medium))
                 .foregroundStyle(down ? Color.primary : Color.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: wordy && key.width > 1.4 ? .bottomLeading : .center)
-                .padding(wordy && key.width > 1.4 ? (size == .regular ? 5 : 3) : 0)
+                .padding(wordy && key.width > 1.4 ? 3 : 0)
         }
         .frame(width: width, height: height)
-        .offset(y: down ? (size == .regular ? 1.5 : 1) : 0)
-        .shadow(color: down ? Color.accentColor.opacity(0.5) : .clear, radius: size == .regular ? 5 : 3)
+        .offset(y: down ? 1 : 0)
+        .shadow(color: down ? Color.accentColor.opacity(0.5) : .clear, radius: 3)
         .animation(.easeOut(duration: 0.06), value: down)
         .contentShape(Rectangle())
         .gesture(
@@ -292,7 +284,7 @@ struct KeyCap: Identifiable {
     /// Stands in for the arrow cluster at the end of the bottom row.
     static let arrowCluster: UInt16 = 0xFFFF
 
-    /// Symbols where the words don't fit the small keyboard.
+    /// Symbols where the words don't fit the keys.
     var shortLabel: String {
         switch code {
         case 51: "⌫"

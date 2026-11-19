@@ -1,24 +1,52 @@
 #if DEBUG
 import AppKit
+import PulseCore
 import SwiftUI
 
 /// `Pulse --snapshot-ui <folder>` (debug builds only): renders every setup
-/// step and each settings pane to PNGs, off screen, so layouts can be checked
-/// (and the README's screenshots made) without showing a window.
+/// step in every state, in setup and in the tutorial, and each settings pane
+/// to PNGs, off screen, so layouts can be checked (and the README's
+/// screenshots made) without showing a window.
 enum UISnapshots {
-    /// How far down the tour snapshot opens.
-    static var tourScroll: CGFloat = 590
-    /// What the README's hero keeps of the cues step, in points from the
-    /// window's top and bottom edges: down to just under the waypoint note,
-    /// and the footer, so the empty band between them goes.
-    static var heroKeeps = (top: CGFloat(410), bottom: CGFloat(49))
+    /// How far down the tour's mid-page snapshot opens.
+    static var tourScroll: CGFloat = 330
+    /// The README's hero is 1400 × 810: the whole tour window, centred on
+    /// a canvas that wide.
+    static var heroAspect: CGFloat = 1400.0 / 810.0
+
+    /// One setup step in one state, as a snapshot names it.
+    private struct Shot {
+        var step: SetupStep
+        var state: String?
+        var tutorialOnly = false
+        var trusted = true
+        var keyboard: KeyboardController.Status = .playing
+        var scroll: CGFloat?
+        var felt: [Cue] = []
+        var hero = false
+    }
+
+    /// Every step and state the setup and the tutorial can show.
+    private static let shots: [Shot] = [
+        Shot(step: .tour, state: nil),
+        Shot(step: .tour, state: "felt", scroll: tourScroll, felt: [.actionable, .action, .caution, .navigation, .landmark]),
+        Shot(step: .permission, state: nil, trusted: false),
+        Shot(step: .permission, state: "granted"),
+        Shot(step: .typing, state: nil),
+        Shot(step: .typing, state: "no-access", trusted: false, keyboard: .off),
+        Shot(step: .typing, state: "muted", keyboard: .mutedByUser),
+        Shot(step: .typing, state: "paused", keyboard: .mediaPlaying),
+        Shot(step: .done, state: nil),
+        Shot(step: .tour, state: nil, tutorialOnly: true),
+        Shot(step: .typing, state: nil, tutorialOnly: true),
+        Shot(step: .done, state: nil, tutorialOnly: true),
+        Shot(step: .tour, state: nil, felt: [.actionable, .action, .caution], hero: true),
+    ]
 
     static func render(to folder: String) {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         let store = SettingsStore(defaults: UserDefaults(suiteName: "pulse.snapshots") ?? .standard)
-        // Mechanical, so the board picker shows.
-        store.value.keyboardProfile = .mechanical
         let previewer = CuePreviewer(haptics: HapticOutput(), audio: CueAudio(), store: store)
         let url = URL(fileURLWithPath: folder)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -37,22 +65,21 @@ enum UISnapshots {
         }
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let suffix = appearance == .aqua ? "light" : "dark"
-            for step in SetupModel.Step.allCases {
-                let model = SetupModel(store: store, previewer: previewer)
-                model.step = step
-                if step == .tour {
-                    // Partway down, a few cues in, as it looks in use.
-                    TourScrollView.snapshotScroll = tourScroll
-                    model.felt = [.landmark, .actionable]
-                    model.lastTourCue = .actionable
-                }
+            // Setup as a first run finds it; Settings on Mechanical, so its board picker shows.
+            store.value.keyboardProfile = PulseSettings().keyboardProfile
+            for shot in shots {
+                let model = SetupModel(store: store, previewer: previewer, tutorialOnly: shot.tutorialOnly, keyboard: shot.keyboard)
+                model.step = shot.step
+                model.trusted = shot.trusted
+                for cue in shot.felt { model.tour.played(cue, felt: true) }
+                TourScrollView.snapshotScroll = shot.scroll
+                let mode = shot.tutorialOnly ? "tutorial" : "setup"
+                let index = model.steps.firstIndex(of: shot.step) ?? 0
+                let name = shot.hero ? "hero" : "\(mode)-\(index)-\(shot.step)" + (shot.state.map { "-\($0)" } ?? "")
                 save(SetupView(model: model, store: store), size: SetupWindowController.size, style: SetupWindowController.style,
-                     appearance: appearance, to: url.appendingPathComponent("setup-\(step.rawValue)-\(step)-\(suffix).png"))
-                if step == .cues {
-                    save(SetupView(model: model, store: store), size: SetupWindowController.size, style: SetupWindowController.style,
-                         appearance: appearance, keeping: heroKeeps, to: url.appendingPathComponent("hero-cues-\(suffix).png"))
-                }
+                     appearance: appearance, aspect: shot.hero ? heroAspect : nil, to: url.appendingPathComponent("\(name)-\(suffix).png"))
             }
+            store.value.keyboardProfile = .mechanical
             for pane in SettingsPane.allCases {
                 save(SettingsView(store: store, previewer: previewer, pane: pane), size: SettingsView.size,
                      style: [.titled, .closable, .miniaturizable, .fullSizeContentView], appearance: appearance,
@@ -62,10 +89,10 @@ enum UISnapshots {
     }
 
     /// The whole window as on screen (title bar and buttons included), with
-    /// rounded corners and a soft shadow, like a window screenshot. `keeping`
-    /// leaves out the middle, keeping that many points at the top and bottom.
+    /// rounded corners and a soft shadow, like a window screenshot. `aspect`
+    /// widens the canvas to that width over height, the window centred.
     private static func save<V: View>(_ view: V, size: CGSize, style: NSWindow.StyleMask, appearance: NSAppearance.Name,
-                                      keeping: (top: CGFloat, bottom: CGFloat)? = nil, to url: URL) {
+                                      aspect: CGFloat? = nil, to url: URL) {
         let window = KeyWindow(contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size),
                                styleMask: style, backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -83,35 +110,9 @@ enum UISnapshots {
         let frame = hosting.superview ?? hosting
         guard let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
         frame.cacheDisplay(in: frame.bounds, to: bitmap)
-        var image = (bitmap: bitmap, size: frame.bounds.size)
-        if let keeping, let ends = ends(of: bitmap, size: image.size, keeping: keeping) { image = ends }
-        try? framed(image.bitmap, size: image.size, dark: appearance == .darkAqua)?.representation(using: .png, properties: [:])?.write(to: url)
+        try? framed(bitmap, size: frame.bounds.size, dark: appearance == .darkAqua, aspect: aspect)?
+            .representation(using: .png, properties: [:])?.write(to: url)
         window.orderOut(nil)
-    }
-
-    /// The window's top and bottom, joined where the middle was.
-    private static func ends(of bitmap: NSBitmapImageRep, size: CGSize,
-                             keeping: (top: CGFloat, bottom: CGFloat)) -> (bitmap: NSBitmapImageRep, size: CGSize)? {
-        let scale = CGFloat(bitmap.pixelsWide) / size.width
-        let joined = CGSize(width: size.width, height: keeping.top + keeping.bottom)
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Int(joined.width * scale), pixelsHigh: Int(joined.height * scale),
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 0, bitsPerPixel: 0
-        ) else { return nil }
-        rep.size = joined
-        NSGraphicsContext.saveGraphicsState()
-        defer { NSGraphicsContext.restoreGraphicsState() }
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        // The bottom strip, then the top one, each clipped to its own part.
-        for (y, strip) in [(CGFloat(0), CGRect(x: 0, y: 0, width: joined.width, height: keeping.bottom)),
-                           (joined.height - size.height, CGRect(x: 0, y: keeping.bottom, width: joined.width, height: keeping.top))] {
-            NSGraphicsContext.saveGraphicsState()
-            strip.clip()
-            bitmap.draw(in: CGRect(x: 0, y: y, width: size.width, height: size.height))
-            NSGraphicsContext.restoreGraphicsState()
-        }
-        return (rep, joined)
     }
 
     /// The app never activates while snapshotting, so its windows would draw
@@ -122,10 +123,11 @@ enum UISnapshots {
         @objc var hasKeyAppearance: Bool { true }
     }
 
-    private static func framed(_ bitmap: NSBitmapImageRep, size: CGSize, dark: Bool) -> NSBitmapImageRep? {
+    private static func framed(_ bitmap: NSBitmapImageRep, size: CGSize, dark: Bool, aspect: CGFloat?) -> NSBitmapImageRep? {
         let scale = CGFloat(bitmap.pixelsWide) / size.width
         let margin: CGFloat = 32
-        let canvas = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
+        var canvas = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
+        if let aspect { canvas.width = max(canvas.width, (canvas.height * aspect).rounded()) }
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(canvas.width * scale), pixelsHigh: Int(canvas.height * scale),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
@@ -135,7 +137,7 @@ enum UISnapshots {
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        let rect = CGRect(x: margin, y: margin, width: size.width, height: size.height)
+        let rect = CGRect(x: (canvas.width - size.width) / 2, y: margin, width: size.width, height: size.height)
         let shape = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
