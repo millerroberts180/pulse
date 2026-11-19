@@ -372,8 +372,7 @@ light and dark; and Settings rendered byte for byte as before.
 tracking areas, hearing the box through the key tap, the grant flow, and
 VoiceOver reading the tour's headings and field all need a real Mac.
 Increase Contrast isn't rendered off screen. If the key tap fails, the event
-monitors Pulse falls back on never hear its own windows, so the box is silent;
-the tap fails only without Accessibility, and the box comes after the grant.
+monitors Pulse falls back on never hear its own windows, so the box is silent.
 
 ## Next steps
 

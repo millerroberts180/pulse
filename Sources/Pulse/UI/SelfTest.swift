@@ -343,7 +343,7 @@ enum SelfTest {
         return ok
     }
 
-    /// The tour opens with nothing focused, so a click is what focuses the
+    /// The tour opens with the page focused, so a click is what focuses the
     /// field and cues, and Tab still goes to the field first.
     private static func tourOpening() -> Bool {
         print("Setup tour opening")
@@ -371,8 +371,8 @@ enum SelfTest {
         let tabbed = (window.firstResponder as? NSTextView)?.delegate
         let initial = window.initialFirstResponder
         window.close()
-        var ok = check(initial is TourScrollView && !(opened is NSText),
-                       "it opens with nothing focused (\(opened.map { String(describing: type(of: $0)) } ?? "nil"))")
+        var ok = check(initial?.enclosingScrollView is TourScrollView && opened === initial,
+                       "it opens with the page focused, not the field (\(opened.map { String(describing: type(of: $0)) } ?? "nil"))")
         ok = check(tabbed is NSTextField, "Tab goes to the email field") && ok
         return ok
     }

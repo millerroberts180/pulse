@@ -80,9 +80,9 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         // Not the field: focused as the window opens, it would never cue, and
-        // clicking in it would change nothing. The page opens with nothing
-        // focused, and Tab still goes to the field first.
-        window?.initialFirstResponder = self
+        // clicking in it would change nothing. The page opens focused, as a
+        // web page does, and Tab still goes to the field first.
+        window?.initialFirstResponder = document
     }
 
     override func layout() {
@@ -383,6 +383,9 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
 
 private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
+    /// The page holds focus as the window opens. If it refused, AppKit would
+    /// focus the next key view instead: the field.
+    override var acceptsFirstResponder: Bool { true }
 }
 
 /// A section heading, exposed to VoiceOver as one.
