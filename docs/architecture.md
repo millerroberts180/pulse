@@ -371,7 +371,9 @@ light and dark; and Settings rendered byte for byte as before.
 **Deferred.** Feeling the cues on a Force Touch trackpad, real hover through
 tracking areas, hearing the box through the key tap, the grant flow, and
 VoiceOver reading the tour's headings and field all need a real Mac.
-Increase Contrast isn't rendered off screen.
+Increase Contrast isn't rendered off screen. If the key tap fails, the event
+monitors Pulse falls back on never hear its own windows, so the box is silent;
+the tap fails only without Accessibility, and the box comes after the grant.
 
 ## Next steps
 

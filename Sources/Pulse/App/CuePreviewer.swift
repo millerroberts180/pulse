@@ -49,7 +49,6 @@ final class CuePreviewer {
 
     /// A cue from the tour page: the live policy decides (one action, one
     /// cue), but mute and the cue switches don't. Returns whether it played.
-    @discardableResult
     func practice(_ cue: Cue, feel: Bool, level: Float) -> Bool {
         guard haptics.play(cue, feel: feel, ignoringMute: true) else { return false }
         if soundIsOn(for: cue) { sound(cue, level: level) }

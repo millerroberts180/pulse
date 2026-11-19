@@ -16,6 +16,7 @@ enum SelfTest {
         ok = retiredBoard() && ok
         ok = motionThroughPageDetector() && ok
         ok = tour() && ok
+        ok = tourOpening() && ok
         ok = mediaQuiet() && ok
         ok = keyboardDemo() && ok
         ok = typingStep() && ok
@@ -272,6 +273,14 @@ enum SelfTest {
         view.simulatePointing(at: "Get help")
         view.simulatePointing(at: "Delete Account…")
         let pointing = cues
+        // Pointing, then tabbing onto the same control, or the reverse.
+        cues = []
+        view.simulateTabbing(to: "Delete Account…")
+        view.simulateLeaving("Delete Account…")
+        view.simulateTabbing(to: "Save Changes")
+        view.simulatePointing(at: "Save Changes")
+        view.simulateLeaving("Save Changes")
+        let once = cues
         cues = []
         view.simulateClickInField()
         let field = cues
@@ -302,8 +311,25 @@ enum SelfTest {
         }
         let up = cues
 
+        // A flick that lifts before the next heading reaches it on momentum.
+        t += 1.6
+        cues = []
+        var checklist = TourChecklist()
+        view.onCue = { cue, feel, _ in
+            cues.append(cue)
+            checklist.played(cue, felt: feel)
+        }
+        var fingerDown = 3
+        while cues.isEmpty, y < bottom {
+            t += 0.05
+            y = min(y + 10, bottom)
+            view.simulateScroll(to: y, touching: fingerDown > 0)
+            fingerDown -= 1
+        }
+
         var ok = check(view.documentHeight > 2000, "the page scrolls (\(Int(view.documentHeight)) pt)")
         ok = check(pointing == [.action, .actionable, .caution], "button, link and destructive button: \(pointing.map(\.rawValue))") && ok
+        ok = check(once == [.action], "a control pointed at and tabbed onto cues once: \(once.map(\.rawValue))") && ok
         ok = check(field == [.caution], "clicking the field with an error: \(field.map(\.rawValue))") && ok
         ok = check(list == [.navigation], "moving through the list: \(list.map(\.rawValue))") && ok
         // The last heading never reaches a third of the way down: the end is felt instead.
@@ -311,7 +337,43 @@ enum SelfTest {
         ok = check(down == expected, "each heading and the highlight once, then the end: \(down.map(\.rawValue))") && ok
         ok = check(afterScroll.isEmpty, "a button scrolled under the pointer stays silent") && ok
         ok = check(up.last == .boundary && up.filter { $0 == .boundary }.count == 1, "one landing back at the top: \(up.map(\.rawValue))") && ok
+        ok = check(cues == [.landmark] && checklist.latest == .landmark && checklist.felt.isEmpty,
+                   "a heading reached on momentum plays and is named, not ticked: \(cues.map(\.rawValue)), ticked \(checklist.felt.map(\.rawValue))") && ok
         window.close()
+        return ok
+    }
+
+    /// The tour opens with nothing focused, so a click is what focuses the
+    /// field and cues, and Tab still goes to the field first.
+    private static func tourOpening() -> Bool {
+        print("Setup tour opening")
+        let suite = "com.millerroberts.Pulse.selftest"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults)
+        let haptics = HapticOutput()
+        haptics.isMuted = true
+        let previewer = CuePreviewer(haptics: haptics, audio: CueAudio(), store: store)
+        let model = SetupModel(store: store, previewer: previewer, tutorialOnly: true, keyboard: .playing)
+        let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: SetupWindowController.size),
+                              styleMask: SetupWindowController.style, backing: .buffered, defer: false)
+        // As the setup window is built.
+        window.contentViewController = NSHostingController(rootView: SetupView(model: model, store: store))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        // What AppKit does as the window first comes on screen.
+        window.makeFirstResponder(window.initialFirstResponder)
+        let opened = window.firstResponder
+        let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                     windowNumber: window.windowNumber, context: nil, characters: "\t", charactersIgnoringModifiers: "\t",
+                                     isARepeat: false, keyCode: 48)!
+        if !window.performKeyEquivalent(with: event) { window.sendEvent(event) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let tabbed = (window.firstResponder as? NSTextView)?.delegate
+        let initial = window.initialFirstResponder
+        window.close()
+        var ok = check(initial is TourScrollView && !(opened is NSText),
+                       "it opens with nothing focused (\(opened.map { String(describing: type(of: $0)) } ?? "nil"))")
+        ok = check(tabbed is NSTextField, "Tab goes to the email field") && ok
         return ok
     }
 

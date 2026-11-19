@@ -48,8 +48,13 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
     private var highlights = LandmarkTracker()
     private var boundaries = BoundaryTracker()
     private var motion = MotionModel()
+    /// The control that last cued, shared by hover and focus as on live pages.
+    private var memory = ControlMemory()
     private var direction: ScrollDirection = .down
     private var newGesture = false
+    /// Whether a finger is on the trackpad for the scroll moving the page now.
+    /// Momentum and mouse wheels have none; keys and the scroller count as before.
+    private var touching = true
     private var lastOrigin: CGFloat = 0
     private var lastScroll: CFTimeInterval = -.infinity
     private var lastWheel: CFTimeInterval = -.infinity
@@ -71,6 +76,14 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Not the field: focused as the window opens, it would never cue, and
+        // clicking in it would change nothing. The page opens with nothing
+        // focused, and Tab still goes to the field first.
+        window?.initialFirstResponder = self
+    }
 
     override func layout() {
         super.layout()
@@ -206,11 +219,29 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
         onCue?(cue, feel, level)
     }
 
-    /// The pointer moved onto a link or button.
-    fileprivate func pointed(at control: NSButton) {
+    /// The pointer moved onto a link or button, at a point in the page.
+    fileprivate func pointed(at control: NSButton, at point: CGPoint) {
+        let frame = frame(of: control)
+        if memory.absorbs(frame: frame, isClickable: true, at: point) { return }
+        // Remembered even when it stays silent, as live hover does.
+        memory.remember(frame)
         let (role, subrole) = Self.roles(of: control)
         let cue = TourCue.hover(role: role, subrole: subrole, label: control.title, sinceScroll: clock() - lastScroll)
         if let cue { play(cue) }
+    }
+
+    /// The pointer left a link or button: the next one it reaches is new.
+    fileprivate func left(_ control: NSButton) {
+        let frame = frame(of: control)
+        if memory.contains(CGPoint(x: frame.midX, y: frame.midY)) { memory.reset() }
+    }
+
+    fileprivate func location(of event: NSEvent) -> CGPoint {
+        document.convert(event.locationInWindow, from: nil)
+    }
+
+    private func frame(of view: NSView) -> CGRect {
+        view.convert(view.bounds, to: document)
     }
 
     /// Keyboard focus landed on a control or the field. Only focus a click
@@ -222,7 +253,14 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
             role: role, subrole: subrole, label: (view as? NSButton)?.title, invalid: (view as? TourField)?.invalid,
             sinceClick: event == .leftMouseDown ? 0 : .infinity
         )
-        if let cue { play(cue) }
+        guard let cue else { return }
+        // A control the pointer just cued is the same control: it cues once.
+        if view is NSButton {
+            let frame = frame(of: view)
+            if memory.absorbs(frame: frame, isClickable: true, at: CGPoint(x: frame.midX, y: frame.midY)) { return }
+            memory.remember(frame)
+        }
+        play(cue)
     }
 
     /// The role and subrole the accessibility tree reports, which for a
@@ -260,7 +298,10 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
             case let .glide(level): play(.glide, feel: touching, level: Float(level))
             }
         }
+        // What this scroll reaches is felt only with a finger down, like its motion.
+        self.touching = touching
         super.scrollWheel(with: event)
+        self.touching = true
     }
 
     @objc private func boundsChanged() {
@@ -283,34 +324,49 @@ final class TourScrollView: NSScrollView, NSTextFieldDelegate {
         // Nothing left to travel: the bounce glides no further.
         if !(edges.atTop && edges.atBottom), direction == .down ? edges.atBottom : edges.atTop { motion.hold() }
         if boundaries.update(edges: edges, direction: direction, isNewGesture: isNewGesture, now: now) {
-            return play(.boundary)
+            return play(.boundary, feel: touching)
         }
         // Where each sits in the viewport, as the live detector reads it on screen.
         func onScreen(_ view: NSView) -> Double { Double(view.frame.minY - visible.minY) }
         let height = Double(visible.height)
         let marked = marks.enumerated().map { HeadingSample(id: $0.offset, level: nil, top: onScreen($0.element)) }
         if highlights.update(headings: marked, viewportTop: 0, viewportBottom: height, now: now) != nil {
-            return play(.waypoint)
+            return play(.waypoint, feel: touching)
         }
         let samples = headings.enumerated().map { HeadingSample(id: $0.offset, level: $0.element.level, top: onScreen($0.element)) }
         if landmarks.update(headings: samples, viewportTop: 0, viewportBottom: height, now: now) != nil {
-            play(.landmark)
+            play(.landmark, feel: touching)
         }
     }
 
     #if DEBUG
-    /// The self-test scrolls, points and clicks directly.
-    func simulateScroll(to y: CGFloat) {
+    /// The self-test scrolls, points and clicks directly. `touching`: a
+    /// finger on the trackpad, rather than momentum.
+    func simulateScroll(to y: CGFloat, touching: Bool = true) {
+        self.touching = touching
         contentView.scroll(to: CGPoint(x: 0, y: y))
         reflectScrolledClipView(contentView)
         boundsChanged()
+        self.touching = true
+    }
+
+    private func control(_ title: String) -> TourControl? {
+        document.subviews.lazy.compactMap { $0 as? NSStackView }.flatMap(\.views)
+            .compactMap { $0 as? TourControl }.first { $0.title == title }
     }
 
     func simulatePointing(at title: String) {
-        if let control = document.subviews.lazy.compactMap({ $0 as? NSStackView }).flatMap(\.views)
-            .compactMap({ $0 as? TourControl }).first(where: { $0.title == title }) {
-            pointed(at: control)
-        }
+        guard let control = control(title) else { return }
+        let frame = frame(of: control)
+        pointed(at: control, at: CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    func simulateLeaving(_ title: String) {
+        if let control = control(title) { left(control) }
+    }
+
+    func simulateTabbing(to title: String) {
+        if let control = control(title) { focused(control, by: .keyDown) }
     }
 
     func simulateClickInField() {
@@ -349,8 +405,8 @@ private final class TourHeading: NSTextField {
     required init?(coder: NSCoder) { nil }
 }
 
-/// A link or button that cues as the pointer moves onto it, once per entry,
-/// and as keyboard focus lands on it.
+/// A link or button that cues as the pointer moves onto it, or as keyboard
+/// focus lands on it. Pointed at and focused, it cues once, as on live pages.
 private final class TourControl: NSButton {
     enum Style { case link, push, destructive }
 
@@ -393,7 +449,12 @@ private final class TourControl: NSButton {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        page?.pointed(at: self)
+        guard let page else { return }
+        page.pointed(at: self, at: page.location(of: event))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        page?.left(self)
     }
 
     override func becomeFirstResponder() -> Bool {
