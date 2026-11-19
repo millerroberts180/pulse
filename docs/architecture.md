@@ -301,7 +301,7 @@ Hot paths, measured with `Pulse --diagnose` and `--probe` on an M-series Mac:
 | Path | Cost |
 | --- | --- |
 | Audio render callback | 0.03 µs idle, 0.25 µs with four overlapping keys, per 10.7 ms buffer (≈0.003 %); silent buffers are flagged so Core Audio skips mixing |
-| Sound bank | 31 voices, 272 KB, rendered in 1.4 ms (one take per voice) |
+| Sound bank | 31 voices, 308 KB, rendered in 1.4 ms (one take per voice) |
 | Hover query, cold | ≈20–30 ms when recovering a control from a container (budget-capped) |
 | Hover query, warm (same element) | ≈0.5 ms: one message, the rest from cache |
 
